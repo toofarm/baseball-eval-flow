@@ -8,7 +8,11 @@ if validation fails.
 
 from typing import Any, List, Optional, Union
 
-from mlb_types import TransformedGameData, TransformedPlayerData
+from mlb_types import (
+    TransformedGameData,
+    TransformedPlayerData,
+    PlayerStatsWithContext,
+)
 
 
 # --- Schedule (after extract) ---
@@ -96,6 +100,54 @@ def validate_transformed_games(
 
 
 # --- Player stats (after fetch_player_stats) ---
+
+
+def validate_player_stats_with_context_list(
+    items: Union[List[PlayerStatsWithContext], Any],
+    min_count: int = 0,
+) -> None:
+    """
+    Validate list of player stats with context from fetch_player_stats.
+
+    - Ensures list and minimum count.
+    - Ensures each item has game_pk, player_id, team_id, position_code, position_name, stats.
+    - Ensures each stats has at least one of batting/pitching/fielding.
+    """
+    if not isinstance(items, list):
+        raise ValueError(
+            f"player stats with context must be a list, got {type(items).__name__}"
+        )
+
+    if len(items) < min_count:
+        raise ValueError(
+            f"expected at least {min_count} player stat(s) with context, got {len(items)}"
+        )
+
+    required_ctx = {"game_pk", "player_id", "team_id", "position_code", "position_name", "stats"}
+    for i, item in enumerate(items):
+        if not isinstance(item, dict):
+            raise ValueError(
+                f"item[{i}] must be a dict, got {type(item).__name__}"
+            )
+        missing = required_ctx - set(item.keys())
+        if missing:
+            raise ValueError(
+                f"item[{i}] missing required keys: {missing}"
+            )
+        stat = item.get("stats")
+        if not isinstance(stat, dict):
+            raise ValueError(
+                f"item[{i}].stats must be a dict, got {type(stat).__name__}"
+            )
+        has_any = (
+            stat.get("batting") is not None
+            or stat.get("pitching") is not None
+            or stat.get("fielding") is not None
+        )
+        if not has_any:
+            raise ValueError(
+                f"item[{i}].stats must have at least one of batting/pitching/fielding"
+            )
 
 
 def validate_player_stats_list(

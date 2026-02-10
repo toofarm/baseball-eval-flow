@@ -11,9 +11,11 @@ from mlb_types.boxscore import (
     FieldingStats,
     LeagueRecord,
     LeagueRef,
+    LoadReadyPlayerGame,
     PitchingStats,
     PlayerBoxscore,
     PlayerStats,
+    PlayerStatsWithContext,
     TeamBoxscoreSide,
     TeamRecord,
     VenueRef,
@@ -63,4 +65,6 @@ __all__ = [
     "TransformedBattingStats",
     "TransformedFieldingStats",
     "TransformedPlayerData",
+    "PlayerStatsWithContext",
+    "LoadReadyPlayerGame",
 ]
