@@ -1,3 +1,3 @@
 # Baseball Eval Flow
 
-ETL flow for baseball ML trainging
+ETL flow for baseball ML training data
