@@ -258,3 +258,98 @@ class TransformedPlayerData(TypedDict, total=False):
     pitching: TransformedPitchingStats | None
     batting: TransformedBattingStats | None
     fielding: TransformedFieldingStats | None
+
+
+# --- Load-ready types (for star schema load stage) ---
+# PlayerStatsWithContext: output of fetch, input to transform (per game_pk).
+# LoadReadyPlayerGame: output of transform, one row per (game_pk, player_id) for fact_game_state.
+
+
+class PlayerStatsWithContext(TypedDict):
+    """Player stats plus game/player/team/position context from boxscore."""
+
+    game_pk: int
+    player_id: int
+    team_id: int
+    position_code: str
+    position_name: str
+    stats: PlayerStats
+
+
+class LoadReadyPlayerGame(TypedDict, total=False):
+    """
+    One row per (game_pk, player_id). Keys match fact_game_state columns.
+    Required: game_pk, player_id, team_id, position_code, position_name.
+    All measure columns optional (nullable in fact).
+    """
+
+    game_pk: int
+    player_id: int
+    team_id: int
+    position_code: str
+    position_name: str
+    # Batting
+    bat_games_played: int
+    bat_runs: int
+    bat_hits: int
+    bat_doubles: int
+    bat_triples: int
+    bat_home_runs: int
+    bat_strike_outs: int
+    bat_base_on_balls: int
+    bat_at_bats: int
+    bat_plate_appearances: int
+    bat_rbi: int
+    bat_stolen_bases: int
+    bat_caught_stealing: int
+    bat_woba: float
+    bat_wrc_plus: float
+    bat_ops: float | None
+    bat_babip: float | None
+    bat_home_run_rate: float
+    bat_fly_outs: int
+    bat_ground_outs: int
+    bat_air_outs: int
+    bat_intentional_walks: int
+    bat_hit_by_pitch: int
+    bat_ground_into_double_play: int
+    bat_total_bases: int
+    bat_left_on_base: int
+    bat_sac_bunts: int
+    bat_sac_flies: int
+    # Pitching
+    pit_games_played: int
+    pit_games_started: int
+    pit_innings_pitched: float
+    pit_wins: int
+    pit_losses: int
+    pit_saves: int
+    pit_hits: int
+    pit_earned_runs: int
+    pit_strike_outs: int
+    pit_base_on_balls: int
+    pit_fip: float
+    pit_babip: float
+    pit_home_run_rate: float
+    pit_batters_faced: int
+    pit_outs: int
+    pit_holds: int
+    pit_blown_saves: int
+    pit_save_opportunities: int
+    pit_pitches_thrown: int
+    pit_balls: int
+    pit_strikes: int
+    pit_hit_batsmen: int
+    pit_balks: int
+    pit_wild_pitches: int
+    pit_pickoffs: int
+    pit_inherited_runners: int
+    pit_inherited_runners_scored: int
+    # Fielding
+    fld_assists: int
+    fld_put_outs: int
+    fld_errors: int
+    fld_chances: int
+    fld_fielding_runs: float
+    fld_passed_ball: int
+    fld_pickoffs: int

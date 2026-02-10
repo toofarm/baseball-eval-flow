@@ -158,3 +158,5 @@ class TransformedGameData(BaseModel):
     game_date: str
     game_type: str
     venue_id: int
+    home_team_id: int
+    away_team_id: int
