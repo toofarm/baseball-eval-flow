@@ -1,0 +1,76 @@
+{
+  "game_pk": 718901,
+  "link": "/api/v1/game/718901/feed/live",
+  "gameType": "R",
+  "season": "2024",
+  "gameDate": "2024-09-15T19:00:00Z",
+  "officialDate": "2024-09-15",
+  "isTie": false,
+  "gameNumber": 1,
+  "publicFacing": true,
+  "doubleHeader": "N",
+  "gamedayType": "P",
+  "tiebreaker": "N",
+  "calendarEventID": "14-718901-2024-09-15",
+  "seasonDisplay": "2024",
+  "dayNight": "N",
+  "scheduledInnings": 9,
+  "reverseHomeAwayStatus": false,
+  "inningBreakLength": 120,
+  "gamesInSeries": 3,
+  "seriesGameNumber": 1,
+  "seriesDescription": "Regular Season",
+  "recordSource": "N",
+  "ifNecessary": "N",
+  "ifNecessaryDescription": "Regular Season",
+  "status": {
+    "abstractGameState": "Final",
+    "codedGameState": "F",
+    "detailedState": "Final",
+    "statusCode": "F",
+    "startTimeTBD": false,
+    "abstractGameCode": "F"
+  },
+  "teams": {
+    "away": {
+      "score": 4,
+      "isWinner": false,
+      "splitSquad": false,
+      "seriesNumber": 1,
+      "leagueRecord": {
+        "wins": 78,
+        "losses": 62,
+        "pct": ".557"
+      },
+      "team": {
+        "id": 147,
+        "name": "New York Yankees",
+        "link": "/api/v1/teams/147"
+      }
+    },
+    "home": {
+      "score": 5,
+      "isWinner": true,
+      "splitSquad": false,
+      "seriesNumber": 1,
+      "leagueRecord": {
+        "wins": 82,
+        "losses": 58,
+        "pct": ".586"
+      },
+      "team": {
+        "id": 111,
+        "name": "Boston Red Sox",
+        "link": "/api/v1/teams/111"
+      }
+    }
+  },
+  "venue": {
+    "id": 3,
+    "name": "Fenway Park",
+    "link": "/api/v1/venues/3"
+  },
+  "content": {
+    "link": "/api/v1/game/718901/content"
+  }
+}
