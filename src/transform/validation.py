@@ -8,14 +8,11 @@ if validation fails.
 
 from typing import Any, List, Optional, Union
 
-from mlb_types import (
+from dags.mlb_types import (
+    PlayerStatsWithContext,
     TransformedGameData,
     TransformedPlayerData,
-    PlayerStatsWithContext,
 )
-
-
-# --- Schedule (after extract) ---
 
 
 def validate_schedule_games(
@@ -23,9 +20,6 @@ def validate_schedule_games(
 ) -> None:
     """
     Validate raw schedule data from extract_yesterdays_games.
-
-    - Ensures list is present and length meets minimum (default 0).
-    - Checks each game has required keys and valid game_pk/season.
     """
     if not isinstance(games, list):
         raise ValueError(f"schedule data must be a list, got {type(games).__name__}")
@@ -47,9 +41,6 @@ def validate_schedule_games(
             raise ValueError(f"game[{i}] invalid game_id: {pk}")
 
 
-# --- Transformed games (after transform_game_data) ---
-
-
 def validate_transformed_games(
     games: Union[List[TransformedGameData], Any],
     min_games: int = 0,
@@ -57,9 +48,6 @@ def validate_transformed_games(
 ) -> None:
     """
     Validate transformed game data.
-
-    - Ensures list length and optional match to expected game_pks.
-    - Validates game_date format (YYYY-MM-DD) and season range.
     """
     if not isinstance(games, list):
         raise ValueError(
@@ -89,14 +77,10 @@ def validate_transformed_games(
             raise ValueError(f"transformed game[{i}] invalid game_pk: {g.game_pk}")
         if not (1870 <= g.season <= 2100):
             raise ValueError(f"transformed game[{i}] invalid season: {g.season}")
-        # Basic date format: YYYY-MM-DD (10 chars)
         if len(g.game_date) < 10 or g.game_date[4] != "-" or g.game_date[7] != "-":
             raise ValueError(
                 f"transformed game[{i}] invalid game_date format: {g.game_date}"
             )
-
-
-# --- Player stats (after fetch_player_stats) ---
 
 
 def validate_player_stats_with_context_list(
@@ -105,10 +89,6 @@ def validate_player_stats_with_context_list(
 ) -> None:
     """
     Validate list of player stats with context from fetch_player_stats.
-
-    - Ensures list and minimum count.
-    - Ensures each item has game_pk, player_id, team_id, position_code, position_name, stats.
-    - Ensures each stats has at least one of batting/pitching/fielding.
     """
     if not isinstance(items, list):
         raise ValueError(
@@ -154,12 +134,7 @@ def validate_player_stats_list(
     player_stats: Union[List[TransformedGameData], Any],
     min_count: int = 0,
 ) -> None:
-    """
-    Validate list of raw player stats from fetch_player_stats.
-
-    - Ensures list and minimum count.
-    - Ensures each item has at least one of batting/pitching/fielding.
-    """
+    """Validate list of raw player stats from fetch_player_stats."""
     if not isinstance(player_stats, list):
         raise ValueError(
             f"player_stats must be a list, got {type(player_stats).__name__}"
@@ -186,19 +161,11 @@ def validate_player_stats_list(
             )
 
 
-# --- Transformed player data (after transform) ---
-
-
 def validate_transformed_player_data(
     records: Union[List[TransformedPlayerData], Any],
     min_count: int = 1,
 ) -> None:
-    """
-    Validate transformed player data.
-
-    - Ensures list and minimum count.
-    - Ensures each record has at least one of batting/pitching/fielding.
-    """
+    """Validate transformed player data."""
     if not isinstance(records, list):
         raise ValueError(
             f"transformed player data must be a list, got {type(records).__name__}"

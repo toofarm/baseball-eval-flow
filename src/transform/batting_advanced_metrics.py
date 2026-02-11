@@ -1,9 +1,8 @@
-import lib.constants as constants
-
-
-from mlb_types import TransformedBattingStats, PlayerStats, TransformedGameData
-
 from typing import cast
+
+from dags.mlb_types import PlayerStats, TransformedBattingStats, TransformedGameData
+
+from src.transform import constants
 
 
 def calculate_woba(
@@ -102,18 +101,14 @@ def calculate_ops(
     return obp + slg
 
 
-# Export to ETL DAG
 def transform_batting_stats(
     player_stats: PlayerStats,
     game: TransformedGameData,
 ) -> TransformedBattingStats:
-    """
-    Transform batting stats for a given player [11].
-    """
+    """Transform batting stats for a given player."""
     if player_stats.get("batting"):
         enriched_stats = cast(TransformedBattingStats, player_stats.get("batting"))
 
-        # We have to subtract the home runs, doubles, and triples from the hits to get the singles
         enriched_stats["woba"] = calculate_woba(
             enriched_stats["baseOnBalls"],
             enriched_stats["hitByPitch"],

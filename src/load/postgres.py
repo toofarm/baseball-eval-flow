@@ -7,7 +7,7 @@ Dispatches:
 - dim_game: upsert from TransformedGameData
 - fact_game_state: upsert from LoadReadyPlayerGame rows
 
-Uses the same PostgresHook pattern as rolling_stats for consistency.
+Caller must get connection (e.g. via PostgresHook), commit, and close.
 Accepts dicts or Pydantic models (XCom may serialize to dict).
 """
 
@@ -78,7 +78,6 @@ def ensure_players(conn: Any, load_ready_rows: list[LoadReadyPlayerGame]) -> int
         VALUES (%s, %s)
         ON CONFLICT (player_id) DO NOTHING
     """
-    # Placeholder until a separate process backfills names
     rows = [(pid, "Unknown") for pid in sorted(player_ids)]
     with conn.cursor() as cur:
         cur.executemany(sql, rows)
@@ -128,7 +127,6 @@ def load_dim_games(
     return len(rows)
 
 
-# fact_game_state columns in schema order
 FACT_COLUMNS = [
     "game_pk",
     "player_id",

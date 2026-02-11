@@ -2,28 +2,13 @@
 Pitching advanced metrics.
 
 Calculates FIP, xFIP, BABIP, and home run rate.
-
-Glossary:
-- bb: base on balls
-- hbp: hit by pitch
-- hr: home runs
-- k: strikeouts
-- sf: sacrifice flies
-- ip: innings pitched
-- fb: fly balls
-- ab: at bats
-- h: hits
-- league_avg_hr: league average home runs
-- league_avg_fb: league average fly balls
-- constant: constant for FIP and xFIP
 """
 
-import lib.constants as constants
-
-
-from mlb_types import TransformedPitchingStats, PlayerStats, TransformedGameData
-
 from typing import cast
+
+from dags.mlb_types import PlayerStats, TransformedGameData, TransformedPitchingStats
+
+from src.transform import constants
 
 
 def calculate_fip(
@@ -70,14 +55,11 @@ def home_run_rate(hr: int, fb: int) -> float:
     return (hr / fb) * 100
 
 
-# Export to ETL DAG
 def transform_pitching_stats(
     player_stats: PlayerStats,
     game: TransformedGameData,
 ) -> TransformedPitchingStats:
-    """
-    Transform pitching stats for a given player [11].
-    """
+    """Transform pitching stats for a given player."""
     if player_stats.get("pitching"):
         enriched_stats = cast(TransformedPitchingStats, player_stats.get("pitching"))
 
@@ -98,7 +80,6 @@ def transform_pitching_stats(
             enriched_stats["sacFlies"],
         )
 
-        # We add up all the fly outs and home runs to get the total fly ball count
         enriched_stats["home_run_rate"] = home_run_rate(
             enriched_stats["homeRuns"],
             (
