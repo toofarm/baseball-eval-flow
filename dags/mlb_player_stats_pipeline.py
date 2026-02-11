@@ -17,13 +17,9 @@ from src.extract import (
     get_schedule_for_date,
 )
 from src.load.postgres import load_to_postgres
-from src.load.rolling_stats import (
-    fetch_game_rows_for_rolling,
-    upsert_rolling_stats,
-)
+from src.load.rolling_stats_sql import run_rolling_stats_incremental
 from src.transform.games import transform_games
 from src.transform.player_stats import transform_player_stats_to_load_ready
-from src.transform.rolling_stats import ROLLING_WINDOW_DAYS, compute_rolling_stats
 from src.transform.validation import (
     validate_schedule_games,
     validate_transformed_games,
@@ -120,50 +116,62 @@ def mlb_player_stats_pipeline():
 
     @task()
     def compute_and_load_rolling_stats(
+        data_interval_start: Optional[DateTime] = None,
         conn_id: str = "mlb_postgres",
-        lookback_days: int = 31,
     ) -> int:
         hook = PostgresHook(postgres_conn_id=conn_id)
         conn = hook.get_conn()
         try:
-            rows = fetch_game_rows_for_rolling(conn, lookback_days)
-            if not rows:
+            if data_interval_start is not None:
+                as_of_date = data_interval_start.in_timezone("UTC").date()
+            else:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT MAX(game_date) FROM dim_game")
+                    row = cur.fetchone()
+                as_of_date = row[0] if row and row[0] is not None else None
+            if as_of_date is None:
                 return 0
-            as_of_date = max(r["game_date"] for r in rows)
-            rolling_rows = compute_rolling_stats(
-                rows,
-                as_of_dates=[as_of_date],
-                window_days=ROLLING_WINDOW_DAYS,
-            )
-            if not rolling_rows:
-                return 0
-            n = upsert_rolling_stats(conn, rolling_rows)
+            n = run_rolling_stats_incremental(conn, as_of_date)
             conn.commit()
             return n
         finally:
             conn.close()
 
-    check_mlb_data_readiness()
+    # Check data readiness (sensor fails on empty API response so run doesn't reschedule forever)
+    sensor_task = check_mlb_data_readiness()
+
+    # Extract and validate schedule data (only after sensor succeeds)
     raw_games = extract_yesterdays_games()
+    raw_games.set_upstream(sensor_task)
     validate_schedule_data(cast(List[ScheduleGame], raw_games))
+
+    # Transform and validate game data
     transformed_games = transform_game_data(cast(List[ScheduleGame], raw_games))
     validate_game_transforms(
         cast(List[ScheduleGame], raw_games),
         cast(List[TransformedGameData], transformed_games),
     )
+
+    # Fetch and validate player stats
     stats_with_context = fetch_player_stats(
         cast(List[TransformedGameData], transformed_games)
     )
     validated_stats = validate_fetched_player_stats(stats_with_context)  # type: ignore[arg-type]
+
+    # Transform player stats to load ready
     load_ready_task = transform_player_stats_to_load_ready_task(
         cast(List[TransformedGameData], transformed_games),
         validated_stats,  # type: ignore[arg-type]
     )
+
+    # Load player stats to postgres
     load_result = load_to_postgres_task(
         cast(List[TransformedGameData], transformed_games),
         load_ready_task,  # type: ignore[arg-type]
         conn_id="mlb_postgres",
     )
+
+    # Compute and load rolling stats
     compute_and_load_rolling_stats(conn_id="mlb_postgres").set_upstream(load_result)
 
 
