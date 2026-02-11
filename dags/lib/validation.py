@@ -35,19 +35,16 @@ def validate_schedule_games(
             f"expected at least {min_games} schedule game(s), got {len(games)}"
         )
 
-    required = {"game_pk", "game_id", "home_name", "away_name", "game_date", "season"}
+    required = {"game_id", "home_name", "away_name", "game_date"}
     for i, g in enumerate(games):
         if not isinstance(g, dict):
             raise ValueError(f"game[{i}] must be a dict, got {type(g).__name__}")
         missing = required - set(g.keys())
         if missing:
             raise ValueError(f"game[{i}] missing required keys: {missing}")
-        pk = g.get("game_pk")
+        pk = g.get("game_id")
         if not isinstance(pk, int) or pk <= 0:
-            raise ValueError(f"game[{i}] invalid game_pk: {pk}")
-        season = g.get("season")
-        if not isinstance(season, int) or season < 1900 or season > 2100:
-            raise ValueError(f"game[{i}] invalid season: {season}")
+            raise ValueError(f"game[{i}] invalid game_id: {pk}")
 
 
 # --- Transformed games (after transform_game_data) ---
@@ -123,17 +120,20 @@ def validate_player_stats_with_context_list(
             f"expected at least {min_count} player stat(s) with context, got {len(items)}"
         )
 
-    required_ctx = {"game_pk", "player_id", "team_id", "position_code", "position_name", "stats"}
+    required_ctx = {
+        "game_pk",
+        "player_id",
+        "team_id",
+        "position_code",
+        "position_name",
+        "stats",
+    }
     for i, item in enumerate(items):
         if not isinstance(item, dict):
-            raise ValueError(
-                f"item[{i}] must be a dict, got {type(item).__name__}"
-            )
+            raise ValueError(f"item[{i}] must be a dict, got {type(item).__name__}")
         missing = required_ctx - set(item.keys())
         if missing:
-            raise ValueError(
-                f"item[{i}] missing required keys: {missing}"
-            )
+            raise ValueError(f"item[{i}] missing required keys: {missing}")
         stat = item.get("stats")
         if not isinstance(stat, dict):
             raise ValueError(

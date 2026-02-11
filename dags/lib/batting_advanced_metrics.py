@@ -18,6 +18,9 @@ def calculate_woba(
     sf: int,
     season: int,
 ) -> float:
+    if ab == 0:
+        return 0.0
+
     consts = constants.get(season)
 
     return (
@@ -35,6 +38,8 @@ def calculate_wrc_plus(
     pa: int,
     season: int,
 ) -> float:
+    if pa == 0:
+        return 0.0
     consts = constants.get(season)
     return ((woba - consts["wOBA"]) / consts["wOBAScale"]) + (consts["R/PA"]) * pa
 
@@ -46,6 +51,8 @@ def calculate_babip(
     k: int,
     sf: int,
 ) -> float:
+    if ab == 0:
+        return 0.0
     return (h - hr) / (ab - k - sf - hr)
 
 
@@ -53,6 +60,8 @@ def calculate_home_run_rate(
     hr: int,
     fb: int,
 ) -> float:
+    if fb == 0:
+        return 0.0
     return hr / fb
 
 
@@ -67,6 +76,8 @@ def calculate_obp(
     ibb: int,
     sf: int,
 ) -> float:
+    if ab == 0:
+        return 0.0
     return (bb + hbp + one_b + two_b + three_b + hr) / (ab + bb - ibb + sf + hbp)
 
 
@@ -77,6 +88,8 @@ def calculate_slg(
     hr: int,
     ab: int,
 ) -> float:
+    if ab == 0:
+        return 0.0
     return (one_b + 2 * two_b + 3 * three_b + 4 * hr) / ab
 
 
@@ -84,6 +97,8 @@ def calculate_ops(
     obp: float,
     slg: float,
 ) -> float:
+    if obp == 0 or slg == 0:
+        return 0.0
     return obp + slg
 
 
