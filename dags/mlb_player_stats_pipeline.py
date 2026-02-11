@@ -1,6 +1,7 @@
 import pendulum
 from airflow.sdk import PokeReturnValue, dag, task
 from airflow.providers.postgres.hooks.postgres import PostgresHook  # type: ignore[import-untyped]
+from airflow.providers.smtp.notifications.smtp import send_smtp_notification
 from pendulum import DateTime
 from typing import List, Optional, cast
 
@@ -26,12 +27,31 @@ from src.transform.validation import (
     validate_player_stats_with_context_list,
 )
 
+# Recipients for pipeline failure alerts. Configure SMTP connection (e.g. smtp_default) in Airflow.
+FAILURE_ALERT_EMAILS = ["alerts@example.com"]
+
 
 @dag(
     schedule="0 2 * * *",
     start_date=pendulum.datetime(2024, 1, 1, tz="UTC"),
     catchup=False,
     tags=["mlb_analytics"],
+    default_args={
+        "on_failure_callback": [
+            send_smtp_notification(
+                from_email="airflow@example.com",
+                to=FAILURE_ALERT_EMAILS,
+                subject="[MLB Pipeline] Task {{ ti.task_id }} failed in {{ dag.dag_id }}",
+                html_content=(
+                    "<p>Task <strong>{{ ti.task_id }}</strong> failed.</p>"
+                    "<p><strong>DAG:</strong> {{ dag.dag_id }}</p>"
+                    "<p><strong>Logical date:</strong> {{ data_interval_start }}</p>"
+                    "<p><strong>Log:</strong> <a href='{{ ti.log_url }}'>View log</a></p>"
+                    "{% if exception %}<p><strong>Exception:</strong> <pre>{{ exception }}</pre></p>{% endif %}"
+                ),
+            )
+        ],
+    },
 )
 def mlb_player_stats_pipeline():
 
