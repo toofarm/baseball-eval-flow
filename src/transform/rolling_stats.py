@@ -3,22 +3,19 @@ Compute 7- and 30-day rolling stats for player_rolling_stats.
 
 Consumes game-level rows (e.g. from fact_game_state joined with dim_game)
 and produces one row per (player_id, as_of_date, window_days) with aggregates
-and rate stats (bat_avg, bat_ops, bat_woba, bat_wrc_plus, pit_era, pit_fip, pit_whip).
+and rate stats.
 """
 
 from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
 
-import lib.constants as constants
+from src.transform import constants
 
-
-# Default windows to compute
 ROLLING_WINDOW_DAYS = (7, 30)
 
 
 def _n(value: Any) -> float:
-    """Coerce to float for arithmetic; None -> 0."""
     if value is None:
         return 0.0
     if isinstance(value, Decimal):
@@ -30,7 +27,6 @@ def _n(value: Any) -> float:
 
 
 def _int_val(value: Any) -> int:
-    """Coerce to int for counts; None -> 0."""
     if value is None:
         return 0
     try:
@@ -57,7 +53,6 @@ def _bat_ops_from_aggregates(
     sf: float,
     total_bases: float,
 ) -> float | None:
-    """OBP + SLG from aggregated counting stats."""
     if ab <= 0:
         return None
     pa_denom = ab + bb - ibb + sf + hbp
@@ -80,7 +75,6 @@ def _bat_woba_from_aggregates(
     sf: float,
     season: int,
 ) -> float | None:
-    """wOBA from aggregated stats using seasonal constants."""
     denom = ab + bb - ibb + sf + hbp
     if denom <= 0:
         return None
@@ -97,7 +91,6 @@ def _bat_woba_from_aggregates(
 
 
 def _bat_wrc_plus_from_woba_pa(woba: float, pa: float, season: int) -> float | None:
-    """wRC+ from wOBA and PA (same formula as batting_advanced_metrics)."""
     if pa <= 0:
         return None
     c = constants.get(season)
@@ -114,7 +107,6 @@ def _pit_era(earned_runs: float, innings_pitched: float) -> float | None:
 
 
 def _pit_fip_weighted_avg(fip_times_ip: float, ip: float) -> float | None:
-    """IP-weighted average FIP (fact_game_state has pit_fip per game but not HR allowed)."""
     if ip <= 0:
         return None
     return round(fip_times_ip / ip, 2)
@@ -133,19 +125,6 @@ def compute_rolling_stats(
 ) -> list[dict[str, Any]]:
     """
     Compute rolling aggregates and rate stats for each (player_id, as_of_date, window_days).
-
-    game_rows: each dict must have at least:
-      - player_id (int)
-      - game_date (date)
-      - season (int)
-      - bat_* / pit_* / fld_* keys matching fact_game_state (values may be None).
-
-    as_of_dates: dates to compute rolling stats for. If None, uses the max game_date
-      present in game_rows.
-
-    window_days: e.g. (7, 30). A game is included if game_date in (as_of_date - window_days, as_of_date].
-
-    Returns list of dicts with keys matching player_rolling_stats table columns.
     """
     if not game_rows:
         return []
@@ -159,7 +138,6 @@ def compute_rolling_stats(
     for as_of_date in as_of_dates:
         for window_d in window_days:
             window_start = as_of_date - timedelta(days=window_d)
-            # Include games where window_start < game_date <= as_of_date
             in_window = [
                 r
                 for r in game_rows
@@ -168,13 +146,11 @@ def compute_rolling_stats(
             player_ids = {r["player_id"] for r in in_window}
             for player_id in player_ids:
                 rows = [r for r in in_window if r["player_id"] == player_id]
-                # Use latest game's season for rate constants
                 season = max(
                     (r.get("season") or 0 for r in rows if r.get("season")),
                     default=2024,
                 )
 
-                # --- Batting aggregates ---
                 bat_gp = sum(_int_val(r.get("bat_games_played")) for r in rows)
                 bat_pa = sum(_int_val(r.get("bat_plate_appearances")) for r in rows)
                 bat_ab = sum(_int_val(r.get("bat_at_bats")) for r in rows)
@@ -194,7 +170,6 @@ def compute_rolling_stats(
                 bat_tb = sum(_int_val(r.get("bat_total_bases")) for r in rows)
                 bat_1b = bat_hits - bat_hr - bat_2b - bat_3b
 
-                # --- Pitching aggregates ---
                 pit_gp = sum(_int_val(r.get("pit_games_played")) for r in rows)
                 pit_ip = sum(_n(r.get("pit_innings_pitched")) for r in rows)
                 pit_w = sum(_int_val(r.get("pit_wins")) for r in rows)
@@ -204,18 +179,15 @@ def compute_rolling_stats(
                 pit_er = sum(_int_val(r.get("pit_earned_runs")) for r in rows)
                 pit_so = sum(_int_val(r.get("pit_strike_outs")) for r in rows)
                 pit_bb = sum(_int_val(r.get("pit_base_on_balls")) for r in rows)
-                # FIP: use IP-weighted avg of game-level pit_fip (fact has no pit_home_runs)
                 pit_fip_times_ip = sum(
                     _n(r.get("pit_fip")) * _n(r.get("pit_innings_pitched")) for r in rows
                 )
 
-                # --- Fielding aggregates ---
                 fld_a = sum(_int_val(r.get("fld_assists")) for r in rows)
                 fld_po = sum(_int_val(r.get("fld_put_outs")) for r in rows)
                 fld_e = sum(_int_val(r.get("fld_errors")) for r in rows)
                 fld_ch = sum(_int_val(r.get("fld_chances")) for r in rows)
 
-                # Build output row (only include if player had any activity in window)
                 if bat_gp == 0 and pit_gp == 0 and fld_ch == 0:
                     continue
 
@@ -251,7 +223,6 @@ def compute_rolling_stats(
                     "fld_chances": fld_ch or None,
                 }
 
-                # Batting rates
                 out["bat_avg"] = _bat_avg(bat_hits, bat_ab)
                 out["bat_ops"] = _bat_ops_from_aggregates(
                     bat_bb, bat_hbp, bat_hits, bat_2b, bat_3b, bat_hr, bat_ab, bat_ibb, bat_sf, bat_tb
@@ -262,7 +233,6 @@ def compute_rolling_stats(
                 out["bat_woba"] = bat_woba
                 out["bat_wrc_plus"] = _bat_wrc_plus_from_woba_pa(bat_woba or 0.0, bat_pa, season) if bat_woba is not None else None
 
-                # Pitching rates
                 out["pit_era"] = _pit_era(pit_er, pit_ip)
                 out["pit_fip"] = _pit_fip_weighted_avg(pit_fip_times_ip, pit_ip)
                 out["pit_whip"] = _pit_whip(pit_h, pit_bb, pit_ip)

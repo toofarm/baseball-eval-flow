@@ -7,7 +7,7 @@ to LoadReadyPlayerGame (flat keys matching schema columns).
 
 from typing import Any
 
-from mlb_types import LoadReadyPlayerGame, TransformedPlayerData
+from dags.mlb_types import LoadReadyPlayerGame, TransformedPlayerData
 
 
 def _parse_innings_pitched(value: Any) -> float | None:
@@ -33,9 +33,7 @@ def to_load_ready_row(
     position_name: str,
     transformed: TransformedPlayerData,
 ) -> LoadReadyPlayerGame:
-    """
-    Flatten context + TransformedPlayerData into one LoadReadyPlayerGame row.
-    """
+    """Flatten context + TransformedPlayerData into one LoadReadyPlayerGame row."""
     row: LoadReadyPlayerGame = {
         "game_pk": game_pk,
         "player_id": player_id,

@@ -1,6 +1,6 @@
-from mlb_types import TransformedFieldingStats, PlayerStats, TransformedGameData
-
 from typing import cast
+
+from dags.mlb_types import PlayerStats, TransformedFieldingStats, TransformedGameData
 
 
 def calculate_fielding_runs(
@@ -13,14 +13,11 @@ def calculate_fielding_runs(
     return (assists + errors) / chances
 
 
-# Export to ETL DAG
 def transform_fielding_stats(
     player_stats: PlayerStats,
     game: TransformedGameData,
 ) -> TransformedFieldingStats:
-    """
-    Transform fielding stats for a given player [11].
-    """
+    """Transform fielding stats for a given player."""
     enriched_stats = cast(TransformedFieldingStats, player_stats.get("fielding"))
     enriched_stats["fielding_runs"] = calculate_fielding_runs(
         enriched_stats["assists"],
