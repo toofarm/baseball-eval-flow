@@ -17,7 +17,6 @@ class ScheduleGame(TypedDict):
     """A single game from statsapi.schedule(date=...). Hints only."""
 
     # Required fields (always present in API response)
-    game_pk: int
     game_id: str
     game_type: str
     status: str

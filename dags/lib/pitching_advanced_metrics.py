@@ -31,9 +31,11 @@ def calculate_fip(
     hbp: int,
     hr: int,
     k: int,
-    ip: int,
+    ip: float,
     season: int,
 ) -> float:
+    if ip == 0:
+        return 0.0
     return ((13 * hr) + (3 * (bb + hbp)) - (2 * k)) / ip + constants.get(season)["cFIP"]
 
 
@@ -47,16 +49,24 @@ def calculate_xfip(
     league_avg_fb: float,
     season: int,
 ) -> float:
+    if ip == 0:
+        return 0.0
     return (
         (13 * (fb * (league_avg_hr / league_avg_fb))) + (3 * (bb + hbp)) - (2 * k)
     ) / ip + constants.get(season)["cFIP"]
 
 
 def calculate_babip(h: int, hr: int, ab: int, k: int, sf: int) -> float:
+    if ab == 0:
+        return 0.0
+    if ab - k - hr + sf == 0:
+        return 0.0
     return (h - hr) / (ab - k - hr + sf)
 
 
 def home_run_rate(hr: int, fb: int) -> float:
+    if fb == 0:
+        return 0.0
     return (hr / fb) * 100
 
 
@@ -76,7 +86,7 @@ def transform_pitching_stats(
             enriched_stats["hitByPitch"],
             enriched_stats["homeRuns"],
             enriched_stats["strikeOuts"],
-            int(enriched_stats["inningsPitched"]),
+            float(enriched_stats["inningsPitched"]),
             int(game.season),
         )
 

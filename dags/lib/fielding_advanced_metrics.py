@@ -8,6 +8,8 @@ def calculate_fielding_runs(
     errors: int,
     chances: int,
 ) -> float:
+    if chances == 0:
+        return 0.0
     return (assists + errors) / chances
 
 
