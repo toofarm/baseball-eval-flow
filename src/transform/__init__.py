@@ -1,1 +1,1 @@
-# Transform package: game/player transforms, validation, rolling stats
+# Transform package: game/player transforms, validation

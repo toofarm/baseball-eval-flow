@@ -1,1 +1,1 @@
-# Load package: Postgres star schema and rolling stats upsert
+# Load package: Postgres star schema and incremental rolling-stats SQL
