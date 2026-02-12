@@ -4,7 +4,7 @@ from typing import List
 
 import requests
 
-from mlb_types import PlayerStatsWithContext, TransformedGameData
+from dags.mlb_types import PlayerStatsWithContext, TransformedGameData
 
 # MLB boxscore API: https://statsapi.mlb.com/api/{ver}/game/{gamePk}/boxscore
 MLB_BOXSCORE_BASE = "https://statsapi.mlb.com/api/v1/game"
@@ -18,7 +18,9 @@ def fetch_boxscore(game_pk: int, timeout: int = 30) -> dict:
     return resp.json()
 
 
-def parse_boxscore_players(boxscore: dict, game_pk: int) -> List[PlayerStatsWithContext]:
+def parse_boxscore_players(
+    boxscore: dict, game_pk: int
+) -> List[PlayerStatsWithContext]:
     """Parse boxscore JSON teams -> players into list of PlayerStatsWithContext dicts."""
     res: List[PlayerStatsWithContext] = []
     teams_data = boxscore.get("teams") or {}
