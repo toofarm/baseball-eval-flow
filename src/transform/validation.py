@@ -41,6 +41,30 @@ def validate_schedule_games(
             raise ValueError(f"game[{i}] invalid game_id: {pk}")
 
 
+def validate_game_load_count(
+    schedule_game_count: int,
+    load_result: Any,
+) -> None:
+    """
+    Compare games loaded (load_result["games"]) to the daily schedule count.
+    Raises ValueError if they differ. load_result is the dict returned by load_to_postgres.
+    """
+    if not isinstance(load_result, dict):
+        raise ValueError(
+            f"load_result must be a dict, got {type(load_result).__name__}"
+        )
+    loaded = load_result.get("games")
+    if loaded is None:
+        raise ValueError("load_result must have key 'games'")
+    if not isinstance(loaded, int) or loaded < 0:
+        raise ValueError(f"load_result['games'] must be a non-negative int, got {loaded!r}")
+    if loaded != schedule_game_count:
+        raise ValueError(
+            f"Game count mismatch: schedule has {schedule_game_count} games, "
+            f"load reported {loaded} games."
+        )
+
+
 def validate_transformed_games(
     games: Union[List[TransformedGameData], Any],
     min_games: int = 0,

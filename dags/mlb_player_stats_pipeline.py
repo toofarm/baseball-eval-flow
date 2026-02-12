@@ -1,6 +1,7 @@
 import pendulum
 from airflow.sdk import PokeReturnValue, dag, task
 from airflow.providers.postgres.hooks.postgres import PostgresHook  # type: ignore[import-untyped]
+from airflow.providers.smtp.notifications.smtp import send_smtp_notification
 from pendulum import DateTime
 from typing import List, Optional, cast
 
@@ -16,15 +17,20 @@ from src.extract import (
     fetch_player_stats_for_games,
     get_schedule_for_date,
 )
+from src.load.audit import record_load_audit
 from src.load.postgres import load_to_postgres
 from src.load.rolling_stats_sql import run_rolling_stats_incremental
 from src.transform.games import transform_games
 from src.transform.player_stats import transform_player_stats_to_load_ready
 from src.transform.validation import (
+    validate_game_load_count,
     validate_schedule_games,
     validate_transformed_games,
     validate_player_stats_with_context_list,
 )
+
+# Recipients for pipeline failure alerts. Configure SMTP connection (e.g. smtp_default) in Airflow.
+FAILURE_ALERT_EMAILS = ["alerts@example.com"]
 
 
 @dag(
@@ -32,6 +38,22 @@ from src.transform.validation import (
     start_date=pendulum.datetime(2024, 1, 1, tz="UTC"),
     catchup=False,
     tags=["mlb_analytics"],
+    default_args={
+        "on_failure_callback": [
+            send_smtp_notification(
+                from_email="airflow@example.com",
+                to=FAILURE_ALERT_EMAILS,
+                subject="[MLB Pipeline] Task {{ ti.task_id }} failed in {{ dag.dag_id }}",
+                html_content=(
+                    "<p>Task <strong>{{ ti.task_id }}</strong> failed.</p>"
+                    "<p><strong>DAG:</strong> {{ dag.dag_id }}</p>"
+                    "<p><strong>Logical date:</strong> {{ data_interval_start }}</p>"
+                    "<p><strong>Log:</strong> <a href='{{ ti.log_url }}'>View log</a></p>"
+                    "{% if exception %}<p><strong>Exception:</strong> <pre>{{ exception }}</pre></p>{% endif %}"
+                ),
+            )
+        ],
+    },
 )
 def mlb_player_stats_pipeline():
 
@@ -115,6 +137,31 @@ def mlb_player_stats_pipeline():
             conn.close()
 
     @task()
+    def validate_game_row_count(
+        schedule_games: List[ScheduleGame],
+        load_result: dict,
+    ) -> None:
+        """Compare games loaded to daily schedule; raise if mismatch."""
+        validate_game_load_count(len(schedule_games), load_result)
+
+    @task()
+    def record_load_audit_task(
+        data_interval_start: Optional[DateTime] = None,
+        conn_id: str = "mlb_postgres",
+    ) -> None:
+        """Record successful mlb_player_stats load for freshness checks."""
+        if data_interval_start is None:
+            raise ValueError("data_interval_start is required")
+        yesterday = data_interval_start.in_timezone("UTC").date()
+        hook = PostgresHook(postgres_conn_id=conn_id)
+        conn = hook.get_conn()
+        try:
+            record_load_audit(conn, "mlb_player_stats", yesterday)
+            conn.commit()
+        finally:
+            conn.close()
+
+    @task()
     def compute_and_load_rolling_stats(
         data_interval_start: Optional[DateTime] = None,
         conn_id: str = "mlb_postgres",
@@ -171,8 +218,16 @@ def mlb_player_stats_pipeline():
         conn_id="mlb_postgres",
     )
 
-    # Compute and load rolling stats
-    compute_and_load_rolling_stats(conn_id="mlb_postgres").set_upstream(load_result)
+    # Row count validation: games loaded must match daily schedule
+    row_count_ok = validate_game_row_count(
+        cast(List[ScheduleGame], raw_games),
+        cast(dict, load_result),
+    )
+    row_count_ok.set_upstream(load_result)
+
+    # Record load for freshness checks, then compute rolling stats
+    record_load_audit_task(conn_id="mlb_postgres").set_upstream(row_count_ok)
+    compute_and_load_rolling_stats(conn_id="mlb_postgres").set_upstream(row_count_ok)
 
 
 mlb_player_stats_pipeline()

@@ -5,7 +5,7 @@ Import from here for convenience:
     from mlb_types import GameMetadata, ScheduleGame, BoxscoreResponse
 """
 
-from mlb_types.boxscore import (
+from dags.mlb_types.boxscore import (
     BattingStats,
     BoxscoreResponse,
     FieldingStats,
@@ -24,7 +24,7 @@ from mlb_types.boxscore import (
     TransformedFieldingStats,
     TransformedPlayerData,
 )
-from mlb_types.game import (
+from dags.mlb_types.game import (
     ContentRef,
     GameMetadata,
     GameStatus,
