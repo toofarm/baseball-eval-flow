@@ -1,0 +1,564 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Baseball Eval Flow — Data Architecture</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        font-family:
+          "Segoe UI",
+          system-ui,
+          -apple-system,
+          sans-serif;
+        margin: 0;
+        padding: 2rem;
+        background: #f8f9fa;
+        color: #1a1a1a;
+      }
+      h1 {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin: 0 0 0.25rem 0;
+        color: #0d47a1;
+      }
+      .subtitle {
+        font-size: 0.9rem;
+        color: #555;
+        margin-bottom: 1.5rem;
+      }
+      .diagram-wrap {
+        background: #fff;
+        border-radius: 8px;
+        padding: 1.5rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        overflow: auto;
+      }
+      .diagram-wrap svg {
+        display: block;
+        max-width: 100%;
+        height: auto;
+      }
+      .legend {
+        margin-top: 1.5rem;
+        padding: 1rem 1.25rem;
+        background: #fff;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        line-height: 1.5;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+      }
+      .legend h2 {
+        font-size: 1rem;
+        margin: 0 0 0.5rem 0;
+        color: #333;
+      }
+      .legend ul {
+        margin: 0;
+        padding-left: 1.25rem;
+        color: #444;
+      }
+      .legend li {
+        margin-bottom: 0.25rem;
+      }
+      .download-hint {
+        margin-top: 0.75rem;
+        font-size: 0.8rem;
+        color: #666;
+      }
+      .mermaid {
+        display: flex;
+        justify-content: center;
+        min-height: 320px;
+      }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>
+      mermaid.initialize({ startOnLoad: true, theme: "neutral" });
+    </script>
+  </head>
+  <body>
+    <h1>Baseball Eval Flow — Data Architecture</h1>
+    <p class="subtitle">
+      ETL and ML prediction pipeline for MLB player performance
+    </p>
+
+    <div class="diagram-wrap" style="margin-bottom: 2rem;">
+      <div class="mermaid">
+flowchart TB
+  subgraph external["External sources"]
+    api["MLB Stats API (statsapi.mlb.com)"]
+  end
+
+  subgraph etl["mlb_player_stats_pipeline — 2:00 UTC"]
+    E1[Check MLB data ready]
+    E2[Extract schedule · Validate · Transform]
+    E3[Fetch boxscores · Transform]
+    E4[Load to Postgres]
+    E5[Rolling stats 7d/30d]
+    E6[Record audit]
+    E1 --> E2 --> E3 --> E4 --> E5 --> E6
+  end
+
+  subgraph ml["ml_predictions_pipeline — 6:00 UTC"]
+    M1[Check freshness + rolling stats]
+    M2[Today's schedule]
+    M3[Train batter wOBA · pitcher FIP]
+    M4[Generate predictions]
+    M5[Load predictions · audit]
+    M1 --> M2 --> M3 --> M4 --> M5
+  end
+
+  subgraph postgres["PostgreSQL"]
+    dims[Dimensions: dim_player, dim_team, dim_game, dim_date, dim_stat_constants]
+    fact[fact_game_state]
+    rolling[player_rolling_stats]
+    preds[predictions]
+    audit[pipeline_load_audit]
+  end
+
+  api -->|schedule, boxscore| E1
+  api -.->|today's schedule| M2
+  E4 --> dims
+  E4 --> fact
+  E5 --> rolling
+  E6 --> audit
+  M4 --> preds
+  M5 --> audit
+  dims --> M3
+  fact --> M3
+  rolling --> M4
+      </div>
+    </div>
+
+    <div class="diagram-wrap">
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 920 580"
+        width="920"
+        height="580"
+      >
+        <defs>
+          <linearGradient id="ext" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" style="stop-color: #e3f2fd" />
+            <stop offset="100%" style="stop-color: #bbdefb" />
+          </linearGradient>
+          <linearGradient id="orch" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" style="stop-color: #fff3e0" />
+            <stop offset="100%" style="stop-color: #ffe0b2" />
+          </linearGradient>
+          <linearGradient id="db" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" style="stop-color: #e8f5e9" />
+            <stop offset="100%" style="stop-color: #c8e6c9" />
+          </linearGradient>
+          <filter id="shadow" x="-4%" y="-4%" width="108%" height="108%">
+            <feDropShadow dx="0" dy="1" stdDeviation="2" flood-opacity="0.15" />
+          </filter>
+          <marker
+            id="arrow"
+            markerWidth="8"
+            markerHeight="8"
+            refX="7"
+            refY="4"
+            orient="auto"
+          >
+            <path d="M0 0 L8 4 L0 8 Z" fill="#666" />
+          </marker>
+          <marker
+            id="arrow2"
+            markerWidth="8"
+            markerHeight="8"
+            refX="7"
+            refY="4"
+            orient="auto"
+          >
+            <path d="M0 0 L8 4 L0 8 Z" fill="#2e7d32" />
+          </marker>
+          <marker
+            id="arrow3"
+            markerWidth="8"
+            markerHeight="8"
+            refX="7"
+            refY="4"
+            orient="auto"
+          >
+            <path d="M0 0 L8 4 L0 8 Z" fill="#666" />
+          </marker>
+        </defs>
+
+        <!-- Section labels -->
+        <text x="120" y="28" font-size="12" font-weight="600" fill="#1565c0">
+          EXTERNAL SOURCES
+        </text>
+        <text x="380" y="28" font-size="12" font-weight="600" fill="#e65100">
+          ORCHESTRATION (Apache Airflow)
+        </text>
+        <text x="680" y="28" font-size="12" font-weight="600" fill="#2e7d32">
+          POSTGRESQL
+        </text>
+
+        <!-- External: MLB API -->
+        <g transform="translate(20, 45)" filter="url(#shadow)">
+          <rect
+            width="200"
+            height="70"
+            rx="6"
+            fill="url(#ext)"
+            stroke="#1976d2"
+            stroke-width="1.5"
+          />
+          <text
+            x="100"
+            y="28"
+            text-anchor="middle"
+            font-size="11"
+            font-weight="600"
+            fill="#0d47a1"
+          >
+            MLB Stats API
+          </text>
+          <text
+            x="100"
+            y="45"
+            text-anchor="middle"
+            font-size="9"
+            fill="#37474f"
+          >
+            statsapi.mlb.com
+          </text>
+          <text
+            x="100"
+            y="60"
+            text-anchor="middle"
+            font-size="9"
+            fill="#546e7a"
+          >
+            Schedule · Boxscore (per game)
+          </text>
+        </g>
+
+        <!-- Airflow DAG 1: MLB Player Stats -->
+        <g transform="translate(260, 45)" filter="url(#shadow)">
+          <rect
+            width="280"
+            height="230"
+            rx="8"
+            fill="url(#orch)"
+            stroke="#ef6c00"
+            stroke-width="1.5"
+          />
+          <text
+            x="400"
+            y="22"
+            text-anchor="middle"
+            font-size="10"
+            font-weight="600"
+            fill="#e65100"
+          >
+            mlb_player_stats_pipeline (2:00 UTC)
+          </text>
+          <line
+            x1="270"
+            y1="32"
+            x2="530"
+            y2="32"
+            stroke="#ef6c00"
+            stroke-width="0.5"
+            opacity="0.6"
+          />
+          <text x="275" y="50" font-size="9" fill="#333">
+            Sensor: MLB data ready
+          </text>
+          <text x="275" y="65" font-size="9" fill="#333">
+            Extract schedule (yesterday)
+          </text>
+          <text x="275" y="80" font-size="9" fill="#333">
+            Validate → Transform games
+          </text>
+          <text x="275" y="95" font-size="9" fill="#333">
+            Fetch player stats (boxscore)
+          </text>
+          <text x="275" y="110" font-size="9" fill="#333">
+            Transform → Load to Postgres
+          </text>
+          <text x="275" y="130" font-size="9" fill="#333">
+            → dim_team, dim_player, dim_game,
+          </text>
+          <text x="275" y="145" font-size="9" fill="#333">fact_game_state</text>
+          <text x="275" y="165" font-size="9" fill="#333">
+            Compute rolling stats (7d / 30d)
+          </text>
+          <text x="275" y="180" font-size="9" fill="#333">
+            → player_rolling_stats
+          </text>
+          <text x="275" y="200" font-size="9" fill="#333">
+            Record load audit
+          </text>
+        </g>
+
+        <!-- Arrow: API → Pipeline 1 -->
+        <path
+          d="M 220 80 L 258 80"
+          stroke="#666"
+          stroke-width="1.5"
+          fill="none"
+          marker-end="url(#arrow)"
+        />
+
+        <!-- Airflow DAG 2: ML Predictions -->
+        <g transform="translate(260, 295)" filter="url(#shadow)">
+          <rect
+            width="280"
+            height="195"
+            rx="8"
+            fill="url(#orch)"
+            stroke="#ef6c00"
+            stroke-width="1.5"
+          />
+          <text
+            x="400"
+            y="22"
+            text-anchor="middle"
+            font-size="10"
+            font-weight="600"
+            fill="#e65100"
+          >
+            ml_predictions_pipeline (6:00 UTC)
+          </text>
+          <line
+            x1="270"
+            y1="32"
+            x2="530"
+            y2="32"
+            stroke="#ef6c00"
+            stroke-width="0.5"
+            opacity="0.6"
+          />
+          <text x="275" y="50" font-size="9" fill="#333">
+            Check upstream freshness (mlb_player_stats)
+          </text>
+          <text x="275" y="65" font-size="9" fill="#333">
+            Check player_rolling_stats (yesterday)
+          </text>
+          <text x="275" y="80" font-size="9" fill="#333">
+            Get today’s schedule
+          </text>
+          <text x="275" y="95" font-size="9" fill="#333">
+            Build training data (dim_game, ~2 yr)
+          </text>
+          <text x="275" y="115" font-size="9" fill="#333">
+            Train: batter (bat_woba) · pitcher (pit_fip)
+          </text>
+          <text x="275" y="130" font-size="9" fill="#333">
+            Generate predictions for today’s games
+          </text>
+          <text x="275" y="150" font-size="9" fill="#333">
+            Load predictions → Record audit
+          </text>
+        </g>
+
+        <!-- Arrow: Pipeline 1 → DB (dims/fact/rolling) -->
+        <path
+          d="M 540 160 L 598 160"
+          stroke="#2e7d32"
+          stroke-width="1.5"
+          fill="none"
+          marker-end="url(#arrow2)"
+        />
+
+        <!-- Arrow: Schedule (for ML) from API - dotted -->
+        <path
+          d="M 120 125 L 120 350 L 258 350"
+          stroke="#666"
+          stroke-width="1"
+          stroke-dasharray="4 3"
+          fill="none"
+          marker-end="url(#arrow3)"
+        />
+        <text x="125" y="240" font-size="8" fill="#666">today’s schedule</text>
+
+        <!-- Arrow: ML pipeline → DB -->
+        <path
+          d="M 540 392 L 598 392"
+          stroke="#2e7d32"
+          stroke-width="1.5"
+          fill="none"
+          marker-end="url(#arrow2)"
+        />
+
+        <!-- PostgreSQL box -->
+        <g transform="translate(600, 45)" filter="url(#shadow)">
+          <rect
+            width="300"
+            height="525"
+            rx="8"
+            fill="url(#db)"
+            stroke="#388e3c"
+            stroke-width="1.5"
+          />
+          <text
+            x="750"
+            y="22"
+            text-anchor="middle"
+            font-size="11"
+            font-weight="600"
+            fill="#1b5e20"
+          >
+            Star schema + ML outputs
+          </text>
+          <line
+            x1="610"
+            y1="32"
+            x2="890"
+            y2="32"
+            stroke="#388e3c"
+            stroke-width="0.5"
+            opacity="0.6"
+          />
+
+          <text x="620" y="55" font-size="10" font-weight="600" fill="#1b5e20">
+            Dimensions
+          </text>
+          <rect
+            x="618"
+            y="60"
+            width="264"
+            height="22"
+            rx="3"
+            fill="#fff"
+            stroke="#81c784"
+            stroke-width="0.5"
+          />
+          <text x="630" y="75" font-size="9" fill="#333">
+            dim_player · dim_team · dim_game · dim_date · dim_stat_constants
+          </text>
+
+          <text x="620" y="100" font-size="10" font-weight="600" fill="#1b5e20">
+            Fact (from ETL)
+          </text>
+          <rect
+            x="618"
+            y="105"
+            width="264"
+            height="22"
+            rx="3"
+            fill="#fff"
+            stroke="#81c784"
+            stroke-width="0.5"
+          />
+          <text x="630" y="120" font-size="9" fill="#333">
+            fact_game_state (game_pk, player_id, batting/pitching/fielding
+            stats)
+          </text>
+
+          <text x="620" y="155" font-size="10" font-weight="600" fill="#1b5e20">
+            Rolling stats (from ETL)
+          </text>
+          <rect
+            x="618"
+            y="160"
+            width="264"
+            height="22"
+            rx="3"
+            fill="#fff"
+            stroke="#81c784"
+            stroke-width="0.5"
+          />
+          <text x="630" y="175" font-size="9" fill="#333">
+            player_rolling_stats (7d / 30d windows, as_of_date)
+          </text>
+
+          <text x="620" y="210" font-size="10" font-weight="600" fill="#1b5e20">
+            ML predictions
+          </text>
+          <rect
+            x="618"
+            y="215"
+            width="264"
+            height="22"
+            rx="3"
+            fill="#fff"
+            stroke="#81c784"
+            stroke-width="0.5"
+          />
+          <text x="630" y="230" font-size="9" fill="#333">
+            predictions (bat_woba, pit_fip per game/player, as_of_date)
+          </text>
+
+          <text x="620" y="265" font-size="10" font-weight="600" fill="#1b5e20">
+            Audit
+          </text>
+          <rect
+            x="618"
+            y="270"
+            width="264"
+            height="22"
+            rx="3"
+            fill="#fff"
+            stroke="#81c784"
+            stroke-width="0.5"
+          />
+          <text x="630" y="285" font-size="9" fill="#333">
+            pipeline_load_audit (freshness for downstream DAGs)
+          </text>
+        </g>
+
+        <!-- Read arrows from DB back to ML (training + prediction) -->
+        <path
+          d="M 600 260 L 558 350"
+          stroke="#5c6bc0"
+          stroke-width="1"
+          stroke-dasharray="3 3"
+          fill="none"
+        />
+        <text x="565" y="300" font-size="7" fill="#5c6bc0">
+          read: training + features
+        </text>
+        <path
+          d="M 600 175 L 558 295"
+          stroke="#5c6bc0"
+          stroke-width="1"
+          stroke-dasharray="3 3"
+          fill="none"
+        />
+        <text x="565" y="232" font-size="7" fill="#5c6bc0">
+          read: rolling stats
+        </text>
+      </svg>
+    </div>
+
+    <div class="legend">
+      <h2>Summary</h2>
+      <ul>
+        <li>
+          <strong>External:</strong> MLB Stats API provides schedule and
+          boxscore data (via MLB-StatsAPI / statsapi.mlb.com).
+        </li>
+        <li>
+          <strong>ETL (2:00 UTC):</strong> Daily pipeline checks that MLB data
+          is ready, pulls yesterday’s games and player stats, validates and
+          transforms, loads into a star schema (dims + fact_game_state), then
+          computes 7- and 30-day rolling stats and records load audit.
+        </li>
+        <li>
+          <strong>ML (6:00 UTC):</strong> After ETL, the predictions pipeline
+          checks freshness and rolling stats, gets today’s schedule, trains
+          batter (wOBA) and pitcher (FIP) models on historical data, generates
+          next-game predictions, and loads them into <code>predictions</code>.
+        </li>
+        <li>
+          <strong>Database:</strong> PostgreSQL holds dimensions, fact table,
+          rolling stats, predictions, and pipeline load audit for dependency and
+          freshness checks.
+        </li>
+      </ul>
+      <p class="download-hint">
+        <strong>To save as PDF:</strong> Open this file in a browser, then use
+        File → Print → Save as PDF (or Cmd+P / Ctrl+P).
+      </p>
+    </div>
+  </body>
+</html>

@@ -11,6 +11,13 @@ Pulls player-level performance data from the MLB's Statcast API, validates and r
 - [PostgreSQL](https://www.postgresql.org/) (Database)
 - [Scikit-Learn](https://pypi.org/project/scikit-learn/) (Predictive modeling)
 
+### Data architecture
+
+A one-page visual overview of the data flow (sources → pipelines → database):
+
+- **[docs/data_architecture.html](docs/data_architecture.html)** — Open in a browser to view the diagram and SVG; use **File → Print → Save as PDF** for a shareable copy.
+- **[docs/data_architecture.md](docs/data_architecture.md)** — Mermaid diagram and summary; renders on GitHub and can be exported from Mermaid Live or your editor.
+
 ## Development and testing
 
 ### Development
