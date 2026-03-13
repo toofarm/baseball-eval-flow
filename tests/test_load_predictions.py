@@ -22,6 +22,7 @@ def test_load_predictions_executemany_called() -> None:
         {
             "game_pk": 100,
             "player_id": 1,
+            "model_type": "ridge",
             "as_of_date": "2024-06-01",
             "pred_bat_woba": 0.35,
             "pred_pit_fip": None,
@@ -34,4 +35,6 @@ def test_load_predictions_executemany_called() -> None:
     cursor.executemany.assert_called_once()
     args = cursor.executemany.call_args[0]
     assert len(args) == 2
-    assert args[1] == [(100, 1, "2024-06-01", 0.35, None, "2024-06-01T06:00:00", None)]
+    assert args[1] == [
+        (100, 1, "ridge", "2024-06-01", 0.35, None, "2024-06-01T06:00:00", None)
+    ]
