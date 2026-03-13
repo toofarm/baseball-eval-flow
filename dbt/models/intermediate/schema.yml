@@ -1,0 +1,15 @@
+version: 2
+
+models:
+  - name: int_player_stats_enriched
+    description: Flattened player stats with advanced metrics (wOBA, wRC+, FIP, BABIP, fielding_runs)
+    columns:
+      - name: game_pk
+      - name: player_id
+      - name: team_id
+      - name: bat_woba
+        description: Weighted on-base average
+      - name: bat_wrc_plus
+        description: Weighted runs created plus
+      - name: pit_fip
+        description: Fielding independent pitching

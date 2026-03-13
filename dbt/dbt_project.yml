@@ -1,0 +1,40 @@
+# dbt project for baseball-eval-flow
+# See https://docs.getdbt.com/reference/dbt_project.yml
+
+name: "baseball_eval"
+version: "1.0.0"
+config-version: 2
+
+profile: "baseball_eval"
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+seeds:
+  baseball_eval:
+    dim_stat_constants:
+      +column_types:
+        season: integer
+        woba: numeric
+        woba_scale: numeric
+        w_bb: numeric
+        w_hbp: numeric
+        w_1b: numeric
+        w_2b: numeric
+        w_3b: numeric
+        w_hr: numeric
+        r_per_pa: numeric
+        c_fip: numeric
+
+models:
+  baseball_eval:
+    # All models in target schema (public) to match existing star schema
