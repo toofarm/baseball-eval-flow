@@ -88,25 +88,51 @@ x-airflow-common:
       condition: service_healthy
     postgres:
       condition: service_healthy
+    schema-init:
+      condition: service_completed_successfully
 
 services:
   postgres:
     image: postgres:16
     environment:
-      POSTGRES_USER: airflow
-      POSTGRES_PASSWORD: airflow
-      POSTGRES_DB: airflow
+      POSTGRES_USER: ${POSTGRES_USER:-airflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-airflow}
+      POSTGRES_DB: ${POSTGRES_DB:-airflow}
     volumes:
       - postgres-db-volume:/var/lib/postgresql/data
       - ${AIRFLOW_PROJ_DIR:-.}/schema:/schema:ro
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "airflow"]
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER:-airflow}"]
       interval: 10s
       retries: 5
       start_period: 5s
     restart: always
     ports:
       - "5432:5432"
+
+  schema-init:
+    image: postgres:16
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-airflow}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-airflow}
+      PGDATABASE: ${POSTGRES_DB:-airflow}
+    volumes:
+      - ${AIRFLOW_PROJ_DIR:-.}/schema:/schema:ro
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        set -e
+        echo "Running schema migrations..."
+        for f in 00_staging 01_dims 02_fact_game_state 03_player_rolling_stats 04_stat_constants 04a_add_c_fip 05_predictions 05a_add_model_type 06_pipeline_load_audit; do
+          echo "Applying /schema/$${f}.sql"
+          psql -v ON_ERROR_STOP=1 -f "/schema/$${f}.sql"
+        done
+        echo "Schema init complete."
+    restart: "no"
 
   redis:
     # Redis is limited to 7.2-bookworm due to licencing change
@@ -158,7 +184,7 @@ services:
     <<: *airflow-common
     command: dag-processor
     healthcheck:
-      test: ["CMD-SHELL", 'airflow jobs check --job-type DagProcessorJob --hostname "$${HOSTNAME}"']
+      test: ["CMD-SHELL", 'airflow jobs check --job-type DagProcessorJob --hostname "$${HOSTNAME:-$$(hostname)}"']
       interval: 30s
       timeout: 10s
       retries: 5
@@ -176,7 +202,7 @@ services:
       # yamllint disable rule:line-length
       test:
         - "CMD-SHELL"
-        - 'celery --app airflow.providers.celery.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}" || celery --app airflow.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}"'
+        - 'celery --app airflow.providers.celery.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME:-$$(hostname)}" || celery --app airflow.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME:-$$(hostname)}"'
       interval: 30s
       timeout: 10s
       retries: 5
@@ -198,7 +224,7 @@ services:
     <<: *airflow-common
     command: triggerer
     healthcheck:
-      test: ["CMD-SHELL", 'airflow jobs check --job-type TriggererJob --hostname "$${HOSTNAME}"']
+      test: ["CMD-SHELL", 'airflow jobs check --job-type TriggererJob --hostname "$${HOSTNAME:-$$(hostname)}"']
       interval: 30s
       timeout: 10s
       retries: 5
