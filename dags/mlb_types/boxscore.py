@@ -150,10 +150,19 @@ class PlayerStats(TypedDict, total=False):
     fielding: FieldingStats | dict[str, Any]
 
 
+class Person(TypedDict, total=False):
+    """A single person entry in the boxscore. Hints only."""
+
+    id: int
+    fullName: str
+    link: str
+    boxscoreName: str
+
+
 class PlayerBoxscore(TypedDict, total=False):
     """A single player entry in the boxscore. Hints only."""
 
-    person: dict[str, Any]
+    person: Person
     jerseyNumber: str
     position: dict[str, Any]
     status: dict[str, Any]
@@ -273,6 +282,8 @@ class PlayerStatsWithContext(TypedDict):
     team_id: int
     position_code: str
     position_name: str
+    full_name: str
+    position_type: str
     stats: PlayerStats
 
 
