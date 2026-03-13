@@ -5,7 +5,7 @@
 CREATE TABLE IF NOT EXISTS dim_player (
     player_id     INTEGER PRIMARY KEY,
     full_name     VARCHAR(255) NOT NULL,
-    boxscore_name VARCHAR(64),
+    position_type VARCHAR(64),
     created_at    TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at    TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -26,7 +26,9 @@ CREATE TABLE IF NOT EXISTS dim_game (
     venue_id       INTEGER NOT NULL,
     home_team_id   INTEGER NOT NULL REFERENCES dim_team(team_id),
     away_team_id   INTEGER NOT NULL REFERENCES dim_team(team_id),
-    winning_team   VARCHAR(255)
+    home_team_score INTEGER,
+    away_team_score INTEGER,
+    winning_team_id INTEGER REFERENCES dim_team(team_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_dim_game_game_date ON dim_game (game_date);

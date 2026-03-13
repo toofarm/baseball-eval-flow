@@ -1,0 +1,33 @@
+version: 2
+
+sources:
+  - name: mlb
+    description: Raw MLB data loaded by Airflow from schedule and boxscore APIs
+    database: "{{ target.dbname }}"
+    schema: "{{ target.schema }}"
+    tables:
+      - name: staging_schedule
+        description: One row per game from MLB schedule API
+      - name: staging_player_stats
+        description: One row per (game_pk, player_id) from boxscore API
+
+models:
+  - name: stg_schedule
+    description: Staging model for schedule data; renames and casts columns
+    columns:
+      - name: game_pk
+        description: MLB game ID (primary key)
+      - name: game_date
+        description: Date of the game (YYYY-MM-DD)
+      - name: season
+        description: Season year extracted from game_date
+
+  - name: stg_player_stats
+    description: Staging model for player stats from boxscore; renames and casts
+    columns:
+      - name: game_pk
+        description: MLB game ID
+      - name: player_id
+        description: MLB player ID
+      - name: team_id
+        description: Team ID for this appearance

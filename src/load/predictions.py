@@ -9,8 +9,8 @@ def load_predictions(conn: Any, rows: list[dict[str, Any]]) -> int:
     """
     Insert or upsert prediction rows into the predictions table.
 
-    Each row must have: game_pk, player_id, as_of_date, pred_bat_woba, pred_pit_fip,
-    model_version_bat, model_version_pit. ON CONFLICT (game_pk, player_id) DO UPDATE.
+    Each row must have: game_pk, player_id, model_type, as_of_date, pred_bat_woba, pred_pit_fip,
+    model_version_bat, model_version_pit. ON CONFLICT (game_pk, player_id, model_type) DO UPDATE.
     Caller must commit and close the connection.
     """
     if not rows:
@@ -18,12 +18,12 @@ def load_predictions(conn: Any, rows: list[dict[str, Any]]) -> int:
 
     sql = """
         INSERT INTO predictions (
-            game_pk, player_id, as_of_date,
+            game_pk, player_id, model_type, as_of_date,
             pred_bat_woba, pred_pit_fip,
             model_version_bat, model_version_pit
         )
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
-        ON CONFLICT (game_pk, player_id) DO UPDATE SET
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        ON CONFLICT (game_pk, player_id, model_type) DO UPDATE SET
             as_of_date = EXCLUDED.as_of_date,
             pred_bat_woba = EXCLUDED.pred_bat_woba,
             pred_pit_fip = EXCLUDED.pred_pit_fip,
@@ -34,6 +34,7 @@ def load_predictions(conn: Any, rows: list[dict[str, Any]]) -> int:
         (
             r["game_pk"],
             r["player_id"],
+            r["model_type"],
             r["as_of_date"],
             r.get("pred_bat_woba"),
             r.get("pred_pit_fip"),

@@ -65,6 +65,29 @@ def validate_game_load_count(
         )
 
 
+def validate_game_count_from_db(
+    conn: Any,
+    schedule_game_count: int,
+    as_of_date: Any,
+) -> None:
+    """
+    Query dim_game for count where game_date = as_of_date; compare to schedule count.
+    Raises ValueError if they differ. For ELT flow after dbt run.
+    """
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT COUNT(*) FROM dim_game WHERE game_date = %s",
+            (as_of_date,),
+        )
+        row = cur.fetchone()
+    loaded = row[0] if row and row[0] is not None else 0
+    if loaded != schedule_game_count:
+        raise ValueError(
+            f"Game count mismatch: schedule has {schedule_game_count} games, "
+            f"dim_game has {loaded} for {as_of_date}."
+        )
+
+
 def validate_transformed_games(
     games: Union[List[TransformedGameData], Any],
     min_games: int = 0,

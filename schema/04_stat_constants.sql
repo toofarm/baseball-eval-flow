@@ -12,5 +12,6 @@ CREATE TABLE IF NOT EXISTS dim_stat_constants (
     w_2b       NUMERIC NOT NULL,
     w_3b       NUMERIC NOT NULL,
     w_hr       NUMERIC NOT NULL,
-    r_per_pa   NUMERIC NOT NULL
+    r_per_pa   NUMERIC NOT NULL,
+    c_fip      NUMERIC NOT NULL
 );

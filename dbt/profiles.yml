@@ -1,0 +1,16 @@
+# dbt connection profile for baseball-eval-flow
+# Use env vars for secrets: DBT_HOST, DBT_USER, DBT_PASSWORD, DBT_DATABASE, DBT_SCHEMA
+# Docker Compose: host=postgres, database=airflow (or mlb if created)
+
+baseball_eval:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('DBT_HOST', 'postgres') }}"
+      port: "{{ env_var('DBT_PORT', '5432') | as_number }}"
+      user: "{{ env_var('DBT_USER', 'airflow') }}"
+      password: "{{ env_var('DBT_PASSWORD', 'airflow') }}"
+      dbname: "{{ env_var('DBT_DATABASE', 'airflow') }}"
+      schema: "{{ env_var('DBT_SCHEMA', 'public') }}"
+      threads: 4

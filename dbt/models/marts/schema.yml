@@ -1,0 +1,13 @@
+version: 2
+
+models:
+  - name: dim_team
+    description: Dimension table for MLB teams
+  - name: dim_player
+    description: Dimension table for MLB players
+  - name: dim_game
+    description: Dimension table for games
+  - name: fact_game_state
+    description: Fact table - one row per player per game with batting/pitching/fielding stats
+  - name: player_rolling_stats
+    description: Rolling 7d and 30d stats per player, updated incrementally
