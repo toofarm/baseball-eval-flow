@@ -25,6 +25,7 @@ from src.ml.train import train_batter_model, train_pitcher_model
 FAILURE_ALERT_EMAILS = ["alerts@example.com"]
 ML_MODEL_DIR = os.environ.get("ML_MODEL_DIR", "/opt/airflow/data/ml")
 TRAINING_LOOKBACK_DAYS = 730  # ~2 seasons
+VALIDATION_DAYS = 30
 
 
 @dag(
@@ -142,10 +143,13 @@ def ml_predictions_pipeline():
         hook = PostgresHook(postgres_conn_id=conn_id)
         conn = hook.get_conn()
         try:
-            X, y, _ = build_batter_training_data(conn, min_date, max_date)
+            X, y, player_dates = build_batter_training_data(conn, min_date, max_date)
             if X.empty or len(y) == 0:
                 return {"n_samples": 0, "trained_at": None}
-            _, meta = train_batter_model(X, y, model_dir=ML_MODEL_DIR)
+            _, meta = train_batter_model(
+                X, y, model_dir=ML_MODEL_DIR,
+                player_dates=player_dates, validation_days=VALIDATION_DAYS,
+            )
             return meta
         finally:
             conn.close()
@@ -155,7 +159,7 @@ def ml_predictions_pipeline():
         date_range: dict[str, Any],
         conn_id: str = "mlb_postgres",
     ) -> dict[str, Any]:
-        """Build pitcher training data, fit pipeline, save to model_dir."""
+        """Build pitcher training data, fit Ridge pipeline, save to model_dir."""
         min_date = date_range.get("min_date")
         max_date = date_range.get("max_date")
         if not min_date or not max_date:
@@ -163,10 +167,63 @@ def ml_predictions_pipeline():
         hook = PostgresHook(postgres_conn_id=conn_id)
         conn = hook.get_conn()
         try:
-            X, y, _ = build_pitcher_training_data(conn, min_date, max_date)
+            X, y, player_dates = build_pitcher_training_data(conn, min_date, max_date)
             if X.empty or len(y) == 0:
                 return {"n_samples": 0, "trained_at": None}
-            _, meta = train_pitcher_model(X, y, model_dir=ML_MODEL_DIR)
+            _, meta = train_pitcher_model(
+                X, y, model_dir=ML_MODEL_DIR,
+                player_dates=player_dates, validation_days=VALIDATION_DAYS,
+            )
+            return meta
+        finally:
+            conn.close()
+
+    @task()
+    def train_batter_hgb_task(
+        date_range: dict[str, Any],
+        conn_id: str = "mlb_postgres",
+    ) -> dict[str, Any]:
+        """Build batter training data, fit HGB pipeline, save to model_dir."""
+        min_date = date_range.get("min_date")
+        max_date = date_range.get("max_date")
+        if not min_date or not max_date:
+            return {"n_samples": 0, "trained_at": None}
+        hook = PostgresHook(postgres_conn_id=conn_id)
+        conn = hook.get_conn()
+        try:
+            X, y, player_dates = build_batter_training_data(conn, min_date, max_date)
+            if X.empty or len(y) == 0:
+                return {"n_samples": 0, "trained_at": None}
+            _, meta = train_batter_model(
+                X, y, model_dir=ML_MODEL_DIR,
+                model_type="hgb",
+                player_dates=player_dates, validation_days=VALIDATION_DAYS,
+            )
+            return meta
+        finally:
+            conn.close()
+
+    @task()
+    def train_pitcher_hgb_task(
+        date_range: dict[str, Any],
+        conn_id: str = "mlb_postgres",
+    ) -> dict[str, Any]:
+        """Build pitcher training data, fit HGB pipeline, save to model_dir."""
+        min_date = date_range.get("min_date")
+        max_date = date_range.get("max_date")
+        if not min_date or not max_date:
+            return {"n_samples": 0, "trained_at": None}
+        hook = PostgresHook(postgres_conn_id=conn_id)
+        conn = hook.get_conn()
+        try:
+            X, y, player_dates = build_pitcher_training_data(conn, min_date, max_date)
+            if X.empty or len(y) == 0:
+                return {"n_samples": 0, "trained_at": None}
+            _, meta = train_pitcher_model(
+                X, y, model_dir=ML_MODEL_DIR,
+                model_type="hgb",
+                player_dates=player_dates, validation_days=VALIDATION_DAYS,
+            )
             return meta
         finally:
             conn.close()
@@ -245,9 +302,13 @@ def ml_predictions_pipeline():
     date_range.set_upstream(schedule)
     train_batter = train_batter_task(cast(dict[str, Any], date_range))
     train_pitcher = train_pitcher_task(cast(dict[str, Any], date_range))
+    train_batter_hgb = train_batter_hgb_task(cast(dict[str, Any], date_range))
+    train_pitcher_hgb = train_pitcher_hgb_task(cast(dict[str, Any], date_range))
     preds = generate_predictions_task(cast(list[dict[str, Any]], schedule))
     preds.set_upstream(train_batter)
     preds.set_upstream(train_pitcher)
+    preds.set_upstream(train_batter_hgb)
+    preds.set_upstream(train_pitcher_hgb)
     load_result = load_predictions_task(cast(list[dict[str, Any]], preds))
     record_load_audit_task(conn_id="mlb_postgres").set_upstream(load_result)
 
