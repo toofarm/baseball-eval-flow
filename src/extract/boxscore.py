@@ -1,13 +1,22 @@
 """Boxscore extraction: fetch and parse MLB Stats API boxscore endpoint."""
 
-from typing import List
+from typing import Any, List
 
 import requests
 
-from dags.mlb_types import PlayerStatsWithContext, TransformedGameData
+from dags.mlb_types import PlayerStatsWithContext, ScheduleGame
 
 # MLB boxscore API: https://statsapi.mlb.com/api/{ver}/game/{gamePk}/boxscore
 MLB_BOXSCORE_BASE = "https://statsapi.mlb.com/api/v1/game"
+
+
+def _get_game_pk(game: Any) -> int:
+    """Extract game_pk from TransformedGameData, dict, or schedule game."""
+    if hasattr(game, "game_pk"):
+        return game.game_pk
+    if isinstance(game, dict):
+        return int(game.get("game_pk") or game.get("game_id", 0))
+    raise TypeError(f"game must have game_pk or be dict, got {type(game)}")
 
 
 def fetch_boxscore(game_pk: int, timeout: int = 30) -> dict:
@@ -45,6 +54,8 @@ def parse_boxscore_players(
                     "team_id": team_id,
                     "position_code": str(position.get("code", "")),
                     "position_name": str(position.get("name", "")),
+                    "position_type": str(position.get("type", "")),
+                    "full_name": str(person.get("fullName", "")),
                     "stats": player_stats,
                 }
             )
@@ -52,11 +63,12 @@ def parse_boxscore_players(
 
 
 def fetch_player_stats_for_games(
-    games: List[TransformedGameData], timeout: int = 30
+    games: List[ScheduleGame], timeout: int = 30
 ) -> List[PlayerStatsWithContext]:
     """Fetch boxscore for each game and parse player stats. Returns combined list."""
     result: List[PlayerStatsWithContext] = []
     for game in games:
-        data = fetch_boxscore(game.game_pk, timeout=timeout)
-        result.extend(parse_boxscore_players(data, game.game_pk))
+        game_pk = _get_game_pk(game)
+        data = fetch_boxscore(game_pk, timeout=timeout)
+        result.extend(parse_boxscore_players(data, game_pk))
     return result
