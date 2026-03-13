@@ -12,12 +12,12 @@ flowchart TB
     api["MLB Stats API (statsapi.mlb.com)"]
   end
 
-  subgraph etl["mlb_player_stats_pipeline — 2:00 UTC"]
+  subgraph elt["mlb_player_stats_pipeline — 2:00 UTC (ELT)"]
     E1[Check MLB data ready]
-    E2[Extract schedule · Validate · Transform]
-    E3[Fetch boxscores · Transform]
-    E4[Load to Postgres]
-    E5[Rolling stats 7d/30d]
+    E2[Extract schedule · Validate]
+    E3[Fetch boxscores]
+    E4[Load to staging tables]
+    E5[dbt seed + dbt run]
     E6[Record audit]
     E1 --> E2 --> E3 --> E4 --> E5 --> E6
   end
@@ -32,6 +32,7 @@ flowchart TB
   end
 
   subgraph postgres["PostgreSQL"]
+    staging[staging_schedule, staging_player_stats]
     dims[Dimensions: dim_player, dim_team, dim_game, dim_date, dim_stat_constants]
     fact[fact_game_state]
     rolling[player_rolling_stats]
@@ -41,8 +42,9 @@ flowchart TB
 
   api -->|schedule, boxscore| E1
   api -.->|today's schedule| M2
-  E4 --> dims
-  E4 --> fact
+  E4 --> staging
+  E5 --> dims
+  E5 --> fact
   E5 --> rolling
   E6 --> audit
   M4 --> preds
@@ -59,9 +61,9 @@ flowchart TB
 | Layer | Description |
 |--------|-------------|
 | **External** | MLB Stats API (schedule + boxscore per game). |
-| **ETL (2:00 UTC)** | Sensor → extract yesterday’s games → validate/transform → fetch player stats → load into star schema → compute 7d/30d rolling stats → record load audit. |
+| **ELT (2:00 UTC)** | Sensor → extract yesterday’s games → validate → fetch boxscores → load raw data into staging tables → dbt seed + dbt run (dims, fact, rolling stats) → record load audit. |
 | **ML (6:00 UTC)** | Check upstream freshness and rolling stats → get today’s schedule → train batter (wOBA) and pitcher (FIP) models → generate predictions → load into `predictions` and record audit. |
-| **PostgreSQL** | Star schema (dimensions, `fact_game_state`), `player_rolling_stats`, `predictions`, and `pipeline_load_audit` for dependencies and freshness. |
+| **PostgreSQL** | Staging tables, star schema (dimensions, `fact_game_state`), `player_rolling_stats`, `predictions`, and `pipeline_load_audit` for dependencies and freshness. |
 
 ---
 
