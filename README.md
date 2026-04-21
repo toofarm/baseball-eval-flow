@@ -31,6 +31,19 @@ Run the project in development using Docker Compose.
 docker compose up --build
 ```
 
+### Production (DigitalOcean / Docker Compose)
+
+Production uses **`docker-compose.prod.yaml`** with the stock Airflow entrypoint, **`Dockerfile.prod`** (DAGs, `config/`, and `dbt/` baked into the image), **Caddy** for HTTPS in front of the api-server, and **no Postgres port** published to the host. Pushes to **`main`** build and push the image to **GHCR** via [`.github/workflows/production-image.yml`](.github/workflows/production-image.yml).
+
+```bash
+docker compose -f docker-compose.yaml -f docker-compose.prod.yaml pull
+docker compose -f docker-compose.yaml -f docker-compose.prod.yaml up -d
+```
+
+Set server-side `.env` variables (Fernet key, Postgres password, `AIRFLOW_IMAGE_NAME`, `AIRFLOW_PUBLIC_HOST`, `AIRFLOW__API__BASE_URL`, Snowflake credentials, etc.). See **[docs/deployment-checklist.md](docs/deployment-checklist.md)**.
+
+Airflow upstream generally recommends Kubernetes for large production deployments; Compose here is a deliberate tradeoff for a small footprint.
+
 #### Database migrations
 
 Add columns to a database post-facto by running `00a_add_staging_column.sql`
@@ -51,7 +64,7 @@ dbt seed                    # Load stat constants
 dbt run --vars '{"as_of_date": "2024-01-15"}'   # Build models (pass as_of_date for rolling stats)
 ```
 
-Connection is configured via `profiles.yml` (uses env vars: `DBT_HOST`, `DBT_USER`, `DBT_PASSWORD`, `DBT_DATABASE`, `DBT_SCHEMA`).
+Connection is configured via `profiles.yml`: default **`dev`** target uses Postgres (`DBT_HOST`, `DBT_USER`, `DBT_PASSWORD`, `DBT_DATABASE`, `DBT_SCHEMA`). The **`prod`** target uses Snowflake (`SNOWFLAKE_ACCOUNT`, `SNOWFLAKE_USER`, `SNOWFLAKE_PASSWORD`, `SNOWFLAKE_ROLE`, `SNOWFLAKE_DATABASE`, `SNOWFLAKE_WAREHOUSE`, `SNOWFLAKE_SCHEMA`). Run Snowflake builds with `dbt run --target prod` (and set env vars accordingly).
 
 ### Testing
 
@@ -62,6 +75,7 @@ Use a Python virtual environment for all Python package installs and test runs:
 source .venv/bin/activate   # or: source venv/bin/activate
 
 # Install dependencies (including dev/test)
+# requirements.txt points to requirements/dev.txt; use requirements/prod.txt for prod
 pip install -r requirements.txt
 
 # Run tests

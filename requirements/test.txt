@@ -1,0 +1,12 @@
+# Lightweight requirements for running the pytest suite in CI.
+# Versions are kept in sync with requirements/base.txt so tests exercise
+# the same library versions that ship in the production image.
+pytest==9.0.2
+
+# Imported directly or transitively by code under test (src/ and dags/mlb_types/).
+pandas==3.0.0
+scikit-learn==1.8.0
+pydantic==2.12.5
+typing_extensions==4.15.0
+requests==2.32.5
+MLB-StatsAPI==1.9.0

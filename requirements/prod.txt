@@ -1,0 +1,4 @@
+-r base.txt
+# Snowflake (production database)
+dbt-snowflake==1.11.3
+snowflake-connector-python==4.3.0

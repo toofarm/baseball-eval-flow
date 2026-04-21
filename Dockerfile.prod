@@ -1,0 +1,28 @@
+ARG AIRFLOW_VERSION=3.1.7
+
+FROM apache/airflow:${AIRFLOW_VERSION}
+ARG AIRFLOW_VERSION
+
+# psql is used by the schema-init service to apply schema/*.sql on boot.
+USER root
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends postgresql-client \
+ && rm -rf /var/lib/apt/lists/*
+USER airflow
+
+ADD requirements/base.txt requirements/prod.txt ./
+RUN pip install apache-airflow==${AIRFLOW_VERSION} -r prod.txt
+
+COPY dags/ /opt/airflow/dags/
+COPY config/ /opt/airflow/config/
+COPY dbt/ /app/dbt/
+COPY schema/ /opt/airflow/schema/
+
+# dags resolve DBT via AIRFLOW_PROJ_DIR (see dags/mlb_player_stats_pipeline.py)
+ENV AIRFLOW_PROJ_DIR=/app
+ENV PYTHONPATH=/opt/airflow/dags:/app
+
+ENV AIRFLOW__CORE__LOAD_EXAMPLES=False
+ENV AIRFLOW__LOGGING__LOGGING_LEVEL=INFO
+
+EXPOSE 8080

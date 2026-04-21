@@ -1,0 +1,92 @@
+# Production overrides for DigitalOcean (or any single host) + Docker Compose v2.
+# Usage:
+#   docker compose -f docker-compose.yaml -f docker-compose.prod.yaml up -d
+#
+# Set in .env (see docs/deployment-checklist.md):
+#   AIRFLOW__CORE__FERNET_KEY, POSTGRES_PASSWORD, _AIRFLOW_WWW_USER_PASSWORD,
+#   AIRFLOW_PUBLIC_HOST, AIRFLOW__API__BASE_URL (https://... matching Caddy)
+#
+# https://docs.docker.com/compose/how-tos/multiple-compose-files/merge/
+
+x-prod-airflow: &prod-airflow
+  build:
+    context: .
+    dockerfile: Dockerfile.prod
+  image: ${AIRFLOW_IMAGE_NAME:-baseball-eval-airflow:prod}
+  volumes: !override
+    - airflow-logs:/opt/airflow/logs
+  environment:
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-airflow}:${POSTGRES_PASSWORD:-airflow}@postgres/${POSTGRES_DB:-airflow}
+    AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://${POSTGRES_USER:-airflow}:${POSTGRES_PASSWORD:-airflow}@postgres/${POSTGRES_DB:-airflow}
+    AIRFLOW__API__BASE_URL: ${AIRFLOW__API__BASE_URL:-http://localhost:8080}
+    AIRFLOW__FAB__ENABLE_PROXY_FIX: "true"
+    PYTHONPATH: /opt/airflow/dags:/app
+
+services:
+  postgres:
+    ports: !reset []
+
+  # Run schema migrations from the baked-in /opt/airflow/schema directory using
+  # the prod Airflow image (which now ships psql + schema SQL). No host bind
+  # mount, so the droplet's git checkout never needs to match the image tag.
+  schema-init:
+    <<: *prod-airflow
+    user: "${AIRFLOW_UID:-50000}:0"
+    volumes: !override []
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        set -e
+        echo "Running schema migrations from /opt/airflow/schema..."
+        for f in 00_staging 01_dims 02_fact_game_state 03_player_rolling_stats 04_stat_constants 04a_add_c_fip 05_predictions 05a_add_model_type 06_pipeline_load_audit; do
+          echo "Applying /opt/airflow/schema/$${f}.sql"
+          psql -v ON_ERROR_STOP=1 -f "/opt/airflow/schema/$${f}.sql"
+        done
+        echo "Schema init complete."
+
+  airflow-apiserver:
+    <<: *prod-airflow
+    ports: !reset []
+
+  airflow-scheduler:
+    <<: *prod-airflow
+
+  airflow-dag-processor:
+    <<: *prod-airflow
+
+  airflow-worker:
+    <<: *prod-airflow
+
+  airflow-triggerer:
+    <<: *prod-airflow
+
+  airflow-init:
+    <<: *prod-airflow
+
+  airflow-cli:
+    <<: *prod-airflow
+
+  flower:
+    <<: *prod-airflow
+
+  caddy:
+    image: caddy:2-alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      AIRFLOW_PUBLIC_HOST: ${AIRFLOW_PUBLIC_HOST:?set AIRFLOW_PUBLIC_HOST to your public DNS name}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      airflow-apiserver:
+        condition: service_healthy
+
+volumes:
+  airflow-logs:
+  caddy_data:
+  caddy_config:
