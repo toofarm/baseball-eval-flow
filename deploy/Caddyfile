@@ -1,0 +1,7 @@
+# TLS reverse proxy for Airflow api-server (production).
+# Set AIRFLOW_PUBLIC_HOST to your DNS name (e.g. airflow.example.com).
+# Caddy obtains and renews Let's Encrypt certificates automatically.
+
+{$AIRFLOW_PUBLIC_HOST} {
+	reverse_proxy airflow-apiserver:8080
+}

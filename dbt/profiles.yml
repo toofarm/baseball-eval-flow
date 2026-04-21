@@ -1,6 +1,6 @@
 # dbt connection profile for baseball-eval-flow
-# Use env vars for secrets: DBT_HOST, DBT_USER, DBT_PASSWORD, DBT_DATABASE, DBT_SCHEMA
-# Docker Compose: host=postgres, database=airflow (or mlb if created)
+# Use env vars for secrets. Docker Compose dev: DBT_* point at Postgres.
+# Production transforms: set target prod and SNOWFLAKE_* env vars.
 
 baseball_eval:
   target: dev
@@ -13,4 +13,14 @@ baseball_eval:
       password: "{{ env_var('DBT_PASSWORD', 'airflow') }}"
       dbname: "{{ env_var('DBT_DATABASE', 'airflow') }}"
       schema: "{{ env_var('DBT_SCHEMA', 'public') }}"
+      threads: 4
+    prod:
+      type: snowflake
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+      user: "{{ env_var('SNOWFLAKE_USER') }}"
+      password: "{{ env_var('SNOWFLAKE_PASSWORD') }}"
+      role: "{{ env_var('SNOWFLAKE_ROLE') }}"
+      database: "{{ env_var('SNOWFLAKE_DATABASE') }}"
+      warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE') }}"
+      schema: "{{ env_var('SNOWFLAKE_SCHEMA') }}"
       threads: 4
