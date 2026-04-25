@@ -2,10 +2,10 @@
 MLB API type definitions.
 
 Import from here for convenience:
-    from mlb_types import GameMetadata, ScheduleGame, BoxscoreResponse
+    from src.mlb_types import GameMetadata, ScheduleGame, BoxscoreResponse
 """
 
-from dags.mlb_types.boxscore import (
+from src.mlb_types.boxscore import (
     BattingStats,
     BoxscoreResponse,
     FieldingStats,
@@ -24,7 +24,7 @@ from dags.mlb_types.boxscore import (
     TransformedFieldingStats,
     TransformedPlayerData,
 )
-from dags.mlb_types.game import (
+from src.mlb_types.game import (
     ContentRef,
     GameMetadata,
     GameStatus,

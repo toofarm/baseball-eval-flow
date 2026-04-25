@@ -5,7 +5,7 @@ from src.extract.streaming_boxscore import fetch_and_load_player_stats_batched
 from unittest.mock import MagicMock, patch
 
 from typing import cast, List
-from dags.mlb_types import ScheduleGame
+from src.mlb_types import ScheduleGame
 
 
 @patch("src.extract.streaming_boxscore.fetch_boxscore")

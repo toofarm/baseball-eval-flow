@@ -1,0 +1,89 @@
+# .dockerignore — pruned build context for Dockerfile.prod (and Dockerfile.dev).
+#
+# Anything matched here is excluded from the build context sent to the Docker
+# daemon. This keeps builds fast, avoids leaking secrets, and prevents stale
+# .pyc files from local development polluting the image.
+
+# --- VCS ---
+.git
+.gitignore
+.gitattributes
+
+# --- Cursor / editors / IDE ---
+.cursor
+.idea
+.vscode
+*.swp
+*.swo
+*~
+
+# --- OS cruft ---
+.DS_Store
+Thumbs.db
+
+# --- Secrets & env files ---
+# We never want .env files baked into an image; runtime config comes from
+# docker-compose / orchestrator env vars instead.
+.env
+.env.*
+!.env.example
+
+# --- Python bytecode & build artifacts ---
+**/__pycache__
+**/*.py[cod]
+**/*$py.class
+**/*.so
+*.egg
+*.egg-info
+.eggs
+dist
+build
+eggs
+
+# --- Virtual environments ---
+.venv
+venv
+ENV
+env
+
+# --- Test & coverage artifacts ---
+.pytest_cache
+.coverage
+.coverage.*
+htmlcov
+.tox
+.nox
+tests
+pyrightconfig.json
+
+# --- Airflow runtime state (host-only, must not enter image) ---
+logs
+*.log
+airflow.db
+airflow-webserver.pid
+airflow-scheduler.pid
+unittests.cfg
+.airflow
+
+# --- dbt local artifacts (regenerated inside the container) ---
+dbt/target
+dbt/dbt_packages
+dbt/logs
+dbt/.user.yml
+
+# --- Files & dirs not needed in the runtime image ---
+# These either have their own delivery path (compose, Caddy host mount) or are
+# only relevant to local development / docs.
+Dockerfile.dev
+docker-compose.yaml
+docker-compose.prod.yaml
+deploy
+docs
+example_data
+scratchpad.*
+README.md
+.github
+
+# Top-level requirements.txt is an orphan stub; Dockerfile.prod uses
+# requirements/base.txt + requirements/prod.txt explicitly.
+requirements.txt

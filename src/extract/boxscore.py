@@ -4,7 +4,7 @@ from typing import Any, List
 
 import requests
 
-from dags.mlb_types import PlayerStatsWithContext, ScheduleGame
+from src.mlb_types import PlayerStatsWithContext, ScheduleGame
 
 # MLB boxscore API: https://statsapi.mlb.com/api/{ver}/game/{gamePk}/boxscore
 MLB_BOXSCORE_BASE = "https://statsapi.mlb.com/api/v1/game"

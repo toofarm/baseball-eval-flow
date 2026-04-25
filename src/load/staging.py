@@ -11,7 +11,7 @@ import json
 from datetime import datetime
 from typing import Any, Sequence
 
-from dags.mlb_types import PlayerStatsWithContext, ScheduleGame
+from src.mlb_types import PlayerStatsWithContext, ScheduleGame
 
 
 def _parse_game_date(game_date_str: str) -> str:

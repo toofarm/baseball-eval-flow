@@ -2,7 +2,7 @@
 
 from typing import Any, List
 
-from dags.mlb_types import PlayerStatsWithContext, ScheduleGame
+from src.mlb_types import PlayerStatsWithContext, ScheduleGame
 
 from src.extract.boxscore import fetch_boxscore, parse_boxscore_players, _get_game_pk
 from src.load.staging import load_staging_player_stats

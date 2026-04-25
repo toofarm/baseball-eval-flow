@@ -4,7 +4,7 @@ from typing import Any, List
 
 import statsapi
 
-from dags.mlb_types import ScheduleGame
+from src.mlb_types import ScheduleGame
 
 
 def get_schedule_for_date(date_str: str) -> List[ScheduleGame]:

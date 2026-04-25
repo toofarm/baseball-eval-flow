@@ -8,7 +8,7 @@ if validation fails.
 
 from typing import Any, List, Optional, Union
 
-from dags.mlb_types import (
+from src.mlb_types import (
     PlayerStatsWithContext,
     TransformedGameData,
     TransformedPlayerData,

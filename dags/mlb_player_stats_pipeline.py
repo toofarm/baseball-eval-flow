@@ -9,7 +9,7 @@ from airflow.providers.smtp.notifications.smtp import send_smtp_notification
 from pendulum import DateTime
 from typing import List, Optional, cast
 
-from mlb_types import (
+from src.mlb_types import (
     ScheduleGame,
 )
 
