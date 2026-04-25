@@ -10,13 +10,13 @@ Use this when bringing up the stack on a droplet or validating a release. Airflo
 
 ## 2. Droplet
 
-- [ ] Ubuntu LTS, **≥ 8 GB RAM** recommended for this stack.
-- [ ] Install **Docker Engine** and **Docker Compose v2** (`docker compose`, not legacy `docker-compose`). See [DigitalOcean Docker Compose on Ubuntu](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-compose-on-ubuntu-22-04) and [Docker’s Compose install docs](https://docs.docker.com/compose/install/).
+- [X] Ubuntu LTS, **≥ 8 GB RAM** recommended for this stack.
+- [X] Install **Docker Engine** and **Docker Compose v2** (`docker compose`, not legacy `docker-compose`). See [DigitalOcean Docker Compose on Ubuntu](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-compose-on-ubuntu-22-04) and [Docker’s Compose install docs](https://docs.docker.com/compose/install/).
 - [ ] Non-root sudo user, SSH keys, firewall (**UFW**): allow **22**, **80**, **443**; deny public access to Postgres and Airflow’s internal API port.
 
 ## 3. Repo layout on the server
 
-- [ ] Clone this repository (or copy at least `docker-compose.yaml`, `docker-compose.prod.yaml`, `deploy/Caddyfile`, and `schema/`). **Postgres schema init** bind-mounts `./schema`; keep paths aligned with `AIRFLOW_PROJ_DIR` / project root when you run Compose.
+- [X] Clone this repository (or copy at least `docker-compose.yaml`, `docker-compose.prod.yaml`, `deploy/Caddyfile`, and `schema/`). **Postgres schema init** bind-mounts `./schema`; keep paths aligned with `AIRFLOW_PROJ_DIR` / project root when you run Compose.
 
 ## 4. Environment file (do not commit)
 
@@ -39,7 +39,7 @@ Optional: `AIRFLOW_UID` on Linux for file ownership on the `airflow-logs` volume
 
 ## 5. TLS (Caddy)
 
-- [ ] **DNS:** `A` / `AAAA` for `AIRFLOW_PUBLIC_HOST` pointing at the droplet.
+- [X] **DNS:** `A` / `AAAA` for `AIRFLOW_PUBLIC_HOST` pointing at the droplet.
 - [ ] Caddy obtains **Let’s Encrypt** certificates automatically when the hostname resolves publicly on **:80** / **:443**.
 - [ ] `AIRFLOW__FAB__ENABLE_PROXY_FIX` is set to `true` in production compose so `X-Forwarded-*` headers from Caddy are honored.
 
