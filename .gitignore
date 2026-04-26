@@ -45,6 +45,7 @@ htmlcov/
 *.swo
 *~
 scratchpad.*
+.cursor
 
 # OS
 .DS_Store

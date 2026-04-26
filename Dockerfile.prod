@@ -26,4 +26,8 @@ ENV PYTHONPATH=/opt/airflow/dags:/app
 ENV AIRFLOW__CORE__LOAD_EXAMPLES=False
 ENV AIRFLOW__LOGGING__LOGGING_LEVEL=INFO
 
+# Prod offloads DAG results to Snowflake; dbt also targets the Snowflake profile.
+ENV MLB_OFFLOAD_CONN_ID=snowflake-baseball
+ENV DBT_TARGET=prod
+
 EXPOSE 8080

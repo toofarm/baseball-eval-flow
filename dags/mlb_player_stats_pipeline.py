@@ -4,7 +4,6 @@ from pathlib import Path
 
 import pendulum
 from airflow.sdk import PokeReturnValue, dag, task
-from airflow.providers.postgres.hooks.postgres import PostgresHook  # type: ignore[import-untyped]
 from airflow.providers.smtp.notifications.smtp import send_smtp_notification
 from pendulum import DateTime
 from typing import List, Optional, cast
@@ -18,6 +17,7 @@ from src.extract import (
     get_schedule_for_date,
 )
 from src.load.audit import record_load_audit
+from src.load.connection import get_offload_hook
 from src.load.staging import load_staging_schedule
 from src.transform.validation import (
     validate_game_count_from_db,
@@ -86,10 +86,10 @@ def mlb_player_stats_pipeline():
     @task()
     def load_staging_task(
         schedule_games: List[ScheduleGame],
-        conn_id: str = "mlb_postgres",
+        conn_id: Optional[str] = None,
     ) -> dict:
         """Load raw schedule and player stats into staging tables."""
-        hook = PostgresHook(postgres_conn_id=conn_id)
+        hook = get_offload_hook(conn_id)
         conn = hook.get_conn()
         try:
             n_schedule = load_staging_schedule(conn, schedule_games)
@@ -118,10 +118,20 @@ def mlb_player_stats_pipeline():
             else str(ds)[:10]
         )
         dbt_dir = str(DBT_PROJECT_DIR)
+        dbt_target = os.environ.get("DBT_TARGET", "prod")
         vars_json = f'{{"as_of_date": "{as_of_date}"}}'
         for cmd in [
-            ["dbt", "seed", "--project-dir", dbt_dir],
-            ["dbt", "run", "--project-dir", dbt_dir, "--vars", vars_json],
+            ["dbt", "seed", "--project-dir", dbt_dir, "--target", dbt_target],
+            [
+                "dbt",
+                "run",
+                "--project-dir",
+                dbt_dir,
+                "--target",
+                dbt_target,
+                "--vars",
+                vars_json,
+            ],
         ]:
             result = subprocess.run(
                 cmd,
@@ -138,7 +148,7 @@ def mlb_player_stats_pipeline():
     @task()
     def validate_game_row_count(
         schedule_games: List[ScheduleGame],
-        conn_id: str = "mlb_postgres",
+        conn_id: Optional[str] = None,
         data_interval_start: Optional[DateTime] = None,
         **context: object,
     ) -> None:
@@ -158,7 +168,7 @@ def mlb_player_stats_pipeline():
             )
         else:
             yesterday = ds
-        hook = PostgresHook(postgres_conn_id=conn_id)
+        hook = get_offload_hook(conn_id)
         conn = hook.get_conn()
         try:
             validate_game_count_from_db(conn, len(schedule_games), yesterday)
@@ -168,13 +178,13 @@ def mlb_player_stats_pipeline():
     @task()
     def record_load_audit_task(
         data_interval_start: Optional[DateTime] = None,
-        conn_id: str = "mlb_postgres",
+        conn_id: Optional[str] = None,
     ) -> None:
         """Record successful mlb_player_stats load for freshness checks."""
         if data_interval_start is None:
             raise ValueError("data_interval_start is required")
         yesterday = data_interval_start.in_timezone("UTC").date()
-        hook = PostgresHook(postgres_conn_id=conn_id)
+        hook = get_offload_hook(conn_id)
         conn = hook.get_conn()
         try:
             record_load_audit(conn, "mlb_player_stats", yesterday)
@@ -193,7 +203,6 @@ def mlb_player_stats_pipeline():
     # Load raw data to staging tables
     load_result = load_staging_task(
         cast(List[ScheduleGame], validated_schedule),
-        conn_id="mlb_postgres",
     )
 
     # Run dbt: seed constants, then build dims, fact, rolling stats
@@ -203,12 +212,11 @@ def mlb_player_stats_pipeline():
     # Validate game count in dim_game matches schedule
     validate_task = validate_game_row_count(
         cast(List[ScheduleGame], validated_schedule),
-        conn_id="mlb_postgres",
     )
     validate_task.set_upstream(dbt_task)
 
     # Record load for freshness checks
-    record_load_audit_task(conn_id="mlb_postgres").set_upstream(validate_task)
+    record_load_audit_task().set_upstream(validate_task)
 
 
 mlb_player_stats_pipeline()

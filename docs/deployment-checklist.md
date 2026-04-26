@@ -33,7 +33,9 @@ Required / strongly recommended:
 | `_AIRFLOW_WWW_USER_PASSWORD` | Fab UI admin password |
 | `AIRFLOW_PUBLIC_HOST` | Public DNS hostname only (used by Caddy for TLS), e.g. `airflow.example.com` |
 | `AIRFLOW__API__BASE_URL` | Public UI URL with scheme, e.g. `https://airflow.example.com` (must match what users open in the browser) |
-| `SNOWFLAKE_*` | For dbt `--target prod` from DAGs: account, user, password, role, database, warehouse, schema |
+| `SNOWFLAKE_*` | For dbt `--target prod` and DAG offload writes: `SNOWFLAKE_ACCOUNT`, `SNOWFLAKE_USER`, `SNOWFLAKE_PASSWORD`, `SNOWFLAKE_ROLE`, `SNOWFLAKE_DATABASE`, `SNOWFLAKE_WAREHOUSE`, `SNOWFLAKE_SCHEMA` |
+| `MLB_OFFLOAD_CONN_ID` | Optional override; defaults to `snowflake-baseball` (see `Dockerfile.prod`). Selects the Airflow connection used by both DAGs for offload writes |
+| `DBT_TARGET` | Optional override; defaults to `prod` (see `Dockerfile.prod`). Selects the `dbt/profiles.yml` target used by `run_dbt_task` |
 
 Optional: `AIRFLOW_UID` on Linux for file ownership on the `airflow-logs` volume.
 
@@ -47,8 +49,10 @@ Local smoke without real DNS: use a throwaway hostname and hosts file, or tempor
 
 ## 6. Snowflake
 
-- [ ] Outbound **HTTPS** from droplet to Snowflake allowed.
-- [ ] If using **network policies** in Snowflake, allow the droplet’s egress IP.
+- [X] Outbound **HTTPS** from droplet to Snowflake allowed.
+- [X] If using **network policies** in Snowflake, allow the droplet’s egress IP.
+- [X] **Airflow connection `snowflake-baseball`** created in the UI (or via `airflow connections add`) with the same credentials referenced by the `SNOWFLAKE_*` env vars. Both DAGs read this conn via `MLB_OFFLOAD_CONN_ID` (default `snowflake-baseball`) — see [src/load/connection.py](../src/load/connection.py).
+- [ ] Snowflake DDL for the offload tables (`staging_schedule`, `staging_player_stats`, `dim_*`, `fact_game_state`, `player_rolling_stats`, `predictions`, `pipeline_load_audit`) is in place. The repo's `schema/snowflak` directory contains DDL for application directly in Snowflake.
 
 ## 7. Start and verify
 
