@@ -9,13 +9,13 @@ from datetime import timedelta
 
 import pendulum
 from airflow.sdk import dag, task
-from airflow.providers.postgres.hooks.postgres import PostgresHook  # type: ignore[import-untyped]
 from airflow.providers.smtp.notifications.smtp import send_smtp_notification
 from typing import Any, Optional, cast
 from pendulum import DateTime
 
 from src.extract import get_schedule_for_date
 from src.load.audit import check_freshness, record_load_audit
+from src.load.connection import get_offload_hook
 from src.load.predictions import load_predictions
 from src.ml.features import build_batter_training_data, build_pitcher_training_data
 from src.ml.predict import generate_predictions
@@ -54,10 +54,10 @@ def ml_predictions_pipeline():
 
     @task()
     def check_upstream_freshness(
-        conn_id: str = "mlb_postgres",
+        conn_id: Optional[str] = None,
     ) -> None:
         """Mandatory: ensure mlb_player_stats was loaded within the last 24 hours."""
-        hook = PostgresHook(postgres_conn_id=conn_id)
+        hook = get_offload_hook(conn_id)
         conn = hook.get_conn()
         try:
             check_freshness(conn, "mlb_player_stats", max_age_hours=24)
@@ -66,7 +66,8 @@ def ml_predictions_pipeline():
 
     @task()
     def check_rolling_stats_ready(
-        conn_id: str = "mlb_postgres", data_interval_start: Optional[DateTime] = None
+        conn_id: Optional[str] = None,
+        data_interval_start: Optional[DateTime] = None,
     ) -> str:
         """Ensure player_rolling_stats has data for yesterday; otherwise raise."""
         if data_interval_start is not None:
@@ -75,7 +76,7 @@ def ml_predictions_pipeline():
             ).date()
         else:
             raise ValueError("data_interval_start is required")
-        hook = PostgresHook(postgres_conn_id=conn_id)
+        hook = get_offload_hook(conn_id)
         conn = hook.get_conn()
         try:
             with conn.cursor() as cur:
@@ -112,10 +113,10 @@ def ml_predictions_pipeline():
 
     @task()
     def build_training_data(
-        conn_id: str = "mlb_postgres",
+        conn_id: Optional[str] = None,
     ) -> dict[str, Any]:
         """Compute training date range from DB and push for train tasks."""
-        hook = PostgresHook(postgres_conn_id=conn_id)
+        hook = get_offload_hook(conn_id)
         conn = hook.get_conn()
         try:
             with conn.cursor() as cur:
@@ -133,14 +134,14 @@ def ml_predictions_pipeline():
     @task()
     def train_batter_task(
         date_range: dict[str, Any],
-        conn_id: str = "mlb_postgres",
+        conn_id: Optional[str] = None,
     ) -> dict[str, Any]:
         """Build batter training data, fit pipeline, save to model_dir."""
         min_date = date_range.get("min_date")
         max_date = date_range.get("max_date")
         if not min_date or not max_date:
             return {"n_samples": 0, "trained_at": None}
-        hook = PostgresHook(postgres_conn_id=conn_id)
+        hook = get_offload_hook(conn_id)
         conn = hook.get_conn()
         try:
             X, y, player_dates = build_batter_training_data(conn, min_date, max_date)
@@ -157,14 +158,14 @@ def ml_predictions_pipeline():
     @task()
     def train_pitcher_task(
         date_range: dict[str, Any],
-        conn_id: str = "mlb_postgres",
+        conn_id: Optional[str] = None,
     ) -> dict[str, Any]:
         """Build pitcher training data, fit Ridge pipeline, save to model_dir."""
         min_date = date_range.get("min_date")
         max_date = date_range.get("max_date")
         if not min_date or not max_date:
             return {"n_samples": 0, "trained_at": None}
-        hook = PostgresHook(postgres_conn_id=conn_id)
+        hook = get_offload_hook(conn_id)
         conn = hook.get_conn()
         try:
             X, y, player_dates = build_pitcher_training_data(conn, min_date, max_date)
@@ -181,14 +182,14 @@ def ml_predictions_pipeline():
     @task()
     def train_batter_hgb_task(
         date_range: dict[str, Any],
-        conn_id: str = "mlb_postgres",
+        conn_id: Optional[str] = None,
     ) -> dict[str, Any]:
         """Build batter training data, fit HGB pipeline, save to model_dir."""
         min_date = date_range.get("min_date")
         max_date = date_range.get("max_date")
         if not min_date or not max_date:
             return {"n_samples": 0, "trained_at": None}
-        hook = PostgresHook(postgres_conn_id=conn_id)
+        hook = get_offload_hook(conn_id)
         conn = hook.get_conn()
         try:
             X, y, player_dates = build_batter_training_data(conn, min_date, max_date)
@@ -206,14 +207,14 @@ def ml_predictions_pipeline():
     @task()
     def train_pitcher_hgb_task(
         date_range: dict[str, Any],
-        conn_id: str = "mlb_postgres",
+        conn_id: Optional[str] = None,
     ) -> dict[str, Any]:
         """Build pitcher training data, fit HGB pipeline, save to model_dir."""
         min_date = date_range.get("min_date")
         max_date = date_range.get("max_date")
         if not min_date or not max_date:
             return {"n_samples": 0, "trained_at": None}
-        hook = PostgresHook(postgres_conn_id=conn_id)
+        hook = get_offload_hook(conn_id)
         conn = hook.get_conn()
         try:
             X, y, player_dates = build_pitcher_training_data(conn, min_date, max_date)
@@ -231,7 +232,7 @@ def ml_predictions_pipeline():
     @task()
     def generate_predictions_task(
         schedule: list[dict[str, Any]],
-        conn_id: str = "mlb_postgres",
+        conn_id: Optional[str] = None,
         data_interval_start: Optional[DateTime] = None,
     ) -> list[dict[str, Any]]:
         """Resolve players, load pipelines, predict bat_woba / pit_fip, return rows."""
@@ -249,7 +250,7 @@ def ml_predictions_pipeline():
             }
             for g in schedule
         ]
-        hook = PostgresHook(postgres_conn_id=conn_id)
+        hook = get_offload_hook(conn_id)
         conn = hook.get_conn()
         try:
             return generate_predictions(
@@ -261,12 +262,12 @@ def ml_predictions_pipeline():
     @task()
     def load_predictions_task(
         rows: list[dict[str, Any]],
-        conn_id: str = "mlb_postgres",
+        conn_id: Optional[str] = None,
     ) -> int:
         """Insert/upsert prediction rows into predictions table."""
         if not rows:
             return 0
-        hook = PostgresHook(postgres_conn_id=conn_id)
+        hook = get_offload_hook(conn_id)
         conn = hook.get_conn()
         try:
             n = load_predictions(conn, rows)
@@ -278,13 +279,13 @@ def ml_predictions_pipeline():
     @task()
     def record_load_audit_task(
         data_interval_start: Optional[DateTime] = None,
-        conn_id: str = "mlb_postgres",
+        conn_id: Optional[str] = None,
     ) -> None:
         """Record successful ml_predictions load for freshness checks."""
         if data_interval_start is None:
             raise ValueError("data_interval_start is required")
         prediction_date = data_interval_start.in_timezone("UTC").date()
-        hook = PostgresHook(postgres_conn_id=conn_id)
+        hook = get_offload_hook(conn_id)
         conn = hook.get_conn()
         try:
             record_load_audit(conn, "ml_predictions", prediction_date)
@@ -310,7 +311,7 @@ def ml_predictions_pipeline():
     preds.set_upstream(train_batter_hgb)
     preds.set_upstream(train_pitcher_hgb)
     load_result = load_predictions_task(cast(list[dict[str, Any]], preds))
-    record_load_audit_task(conn_id="mlb_postgres").set_upstream(load_result)
+    record_load_audit_task().set_upstream(load_result)
 
 
 ml_predictions_pipeline()

@@ -18,7 +18,7 @@ def record_load_audit(
     Insert one row into pipeline_load_audit after a successful load.
     Caller must commit and close the connection.
 
-    :param conn: DB connection (e.g. from PostgresHook.get_conn()).
+    :param conn: DB-API connection (e.g. from SnowflakeHook.get_conn()).
     :param pipeline_name: e.g. "mlb_player_stats", "ml_predictions".
     :param load_date: optional date of the load (Python date or None); stored as load_date.
     """
@@ -39,7 +39,7 @@ def check_freshness(
     Ensure the given pipeline has at least one load within the last max_age_hours (UTC).
     Raises ValueError if no row exists or the latest loaded_at is too old.
 
-    :param conn: DB connection (e.g. from PostgresHook.get_conn()).
+    :param conn: DB-API connection (e.g. from SnowflakeHook.get_conn()).
     :param pipeline_name: e.g. "mlb_player_stats".
     :param max_age_hours: maximum age in hours of the latest load (default 24).
     """
