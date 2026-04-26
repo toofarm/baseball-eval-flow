@@ -170,5 +170,5 @@ asyncpg==0.31.0
 psycopg2-binary==2.9.11
 
 # Snowflake (prod offload destination)
-apache-airflow-providers-snowflake==6.12.1
+apache-airflow-providers-snowflake==6.12.2
 
