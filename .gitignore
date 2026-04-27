@@ -3,8 +3,7 @@
 .env.local
 .env.*.local
 id_ed25519*
-rsa_key.pub
-rsa_key
+rsa_key*
 
 # Airflow runtime
 logs/
