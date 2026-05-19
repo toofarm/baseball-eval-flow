@@ -28,7 +28,6 @@ x-prod-airflow: &prod-airflow
     # Snowflake credentials for dbt run_dbt_task (see dbt/profiles.yml prod target)
     SNOWFLAKE_ACCOUNT: ${SNOWFLAKE_ACCOUNT}
     SNOWFLAKE_USER: ${SNOWFLAKE_USER}
-    SNOWFLAKE_PASSWORD: ${SNOWFLAKE_PASSWORD}
     SNOWFLAKE_ROLE: ${SNOWFLAKE_ROLE}
     SNOWFLAKE_DATABASE: ${SNOWFLAKE_DATABASE}
     SNOWFLAKE_WAREHOUSE: ${SNOWFLAKE_WAREHOUSE}
@@ -71,7 +70,7 @@ services:
     <<: *prod-airflow
 
   airflow-triggerer:
-    <<: *prod-airflow
+    <<: *prod-airflow 
 
   airflow-init:
     <<: *prod-airflow

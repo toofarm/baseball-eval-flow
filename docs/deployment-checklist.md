@@ -12,7 +12,7 @@ Use this when bringing up the stack on a droplet or validating a release. Airflo
 
 - [X] Ubuntu LTS, **≥ 8 GB RAM** recommended for this stack.
 - [X] Install **Docker Engine** and **Docker Compose v2** (`docker compose`, not legacy `docker-compose`). See [DigitalOcean Docker Compose on Ubuntu](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-compose-on-ubuntu-22-04) and [Docker’s Compose install docs](https://docs.docker.com/compose/install/).
-- [ ] Non-root sudo user, SSH keys, firewall (**UFW**): allow **22**, **80**, **443**; deny public access to Postgres and Airflow’s internal API port.
+- [X] Non-root sudo user, SSH keys, firewall (**UFW**): allow **22**, **80**, **443**; deny public access to Postgres and Airflow’s internal API port.
 
 ## 3. Repo layout on the server
 
@@ -52,7 +52,7 @@ Local smoke without real DNS: use a throwaway hostname and hosts file, or tempor
 - [X] Outbound **HTTPS** from droplet to Snowflake allowed.
 - [X] If using **network policies** in Snowflake, allow the droplet’s egress IP.
 - [X] **Airflow connection `snowflake-baseball`** created in the UI (or via `airflow connections add`) with the same credentials referenced by the `SNOWFLAKE_*` env vars. Both DAGs read this conn via `MLB_OFFLOAD_CONN_ID` (default `snowflake-baseball`) — see [src/load/connection.py](../src/load/connection.py).
-- [ ] Snowflake DDL for the offload tables (`staging_schedule`, `staging_player_stats`, `dim_*`, `fact_game_state`, `player_rolling_stats`, `predictions`, `pipeline_load_audit`) is in place. The repo's `schema/snowflak` directory contains DDL for application directly in Snowflake.
+- [X] Snowflake DDL for the offload tables (`staging_schedule`, `staging_player_stats`, `dim_*`, `fact_game_state`, `player_rolling_stats`, `predictions`, `pipeline_load_audit`) is in place. The repo's `schema/snowflak` directory contains DDL for application directly in Snowflake.
 
 ## 7. Start and verify
 
