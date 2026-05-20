@@ -20,7 +20,7 @@ COPY src/ /app/src/
 COPY schema/ /opt/airflow/schema/
 
 # dags resolve DBT via AIRFLOW_PROJ_DIR (see dags/mlb_player_stats_pipeline.py)
-ENV AIRFLOW_PROJ_DIR=./
+ENV AIRFLOW_PROJ_DIR=/app
 ENV PYTHONPATH=/opt/airflow/dags:/app
 
 ENV AIRFLOW__CORE__LOAD_EXAMPLES=False

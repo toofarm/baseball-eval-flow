@@ -26,7 +26,7 @@ from src.transform.validation import (
 
 from src.extract.streaming_boxscore import fetch_and_load_player_stats_batched
 
-## Environment variables for batch streaming
+# Environment variables for batch streaming
 GAME_BATCH_SIZE = int(os.environ.get("MLB_GAME_BATCH_SIZE", "5"))
 LOAD_ROW_BATCH_SIZE = int(os.environ.get("MLB_LOAD_ROW_BATCH_SIZE", "1000"))
 
@@ -34,7 +34,8 @@ LOAD_ROW_BATCH_SIZE = int(os.environ.get("MLB_LOAD_ROW_BATCH_SIZE", "1000"))
 FAILURE_ALERT_EMAILS = ["alerts@example.com"]
 
 # dbt project path (mounted at /opt/airflow/app in Docker)
-DBT_PROJECT_DIR = Path(os.environ.get("AIRFLOW_PROJ_DIR", "/opt/airflow/app")) / "dbt"
+DBT_PROJECT_DIR = Path(os.environ.get(
+    "AIRFLOW_PROJ_DIR", "/opt/airflow/app")) / "dbt"
 
 
 @dag(
@@ -46,7 +47,7 @@ DBT_PROJECT_DIR = Path(os.environ.get("AIRFLOW_PROJ_DIR", "/opt/airflow/app")) /
     default_args={
         "on_failure_callback": [
             send_smtp_notification(
-                from_email="airflow@example.com",
+                from_email="noreply@shanemadethat.com",
                 to=FAILURE_ALERT_EMAILS,
                 subject="[MLB Pipeline] Task {{ ti.task_id }} failed in {{ dag.dag_id }}",
                 html_content=(
@@ -198,7 +199,8 @@ def mlb_player_stats_pipeline():
     # Extract and validate schedule data (only after sensor succeeds)
     raw_games = extract_yesterdays_games()
     raw_games.set_upstream(sensor_task)
-    validated_schedule = validate_schedule_data(cast(List[ScheduleGame], raw_games))
+    validated_schedule = validate_schedule_data(
+        cast(List[ScheduleGame], raw_games))
 
     # Load raw data to staging tables
     load_result = load_staging_task(
