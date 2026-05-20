@@ -15,8 +15,8 @@ RUN pip install apache-airflow==${AIRFLOW_VERSION} -r prod.txt
 
 COPY dags/ /opt/airflow/dags/
 COPY config/ /opt/airflow/config/
-COPY dbt/ /app/dbt/
-COPY src/ /app/src/
+COPY --chown=airflow:0 dbt/ /app/dbt/
+COPY --chown=airflow:0 src/ /app/src/
 COPY schema/ /opt/airflow/schema/
 
 # dags resolve DBT via AIRFLOW_PROJ_DIR (see dags/mlb_player_stats_pipeline.py)
