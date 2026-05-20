@@ -15,6 +15,7 @@ x-prod-airflow: &prod-airflow
   image: ${AIRFLOW_IMAGE_NAME:-baseball-eval-airflow:prod}
   volumes: !override
     - airflow-logs:/opt/airflow/logs
+    - ./rsa_key.p8:/opt/airflow/rsa_key.p8:ro
   environment:
     AIRFLOW__CORE__LOAD_EXAMPLES: "false"
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-airflow}:${POSTGRES_PASSWORD:-airflow}@postgres/${POSTGRES_DB:-airflow}
@@ -32,7 +33,6 @@ x-prod-airflow: &prod-airflow
     SNOWFLAKE_DATABASE: ${SNOWFLAKE_DATABASE}
     SNOWFLAKE_WAREHOUSE: ${SNOWFLAKE_WAREHOUSE}
     SNOWFLAKE_SCHEMA: ${SNOWFLAKE_SCHEMA}
-    RSA_PRIVATE_KEY: ${RSA_PRIVATE_KEY}
 
 services:
   postgres:

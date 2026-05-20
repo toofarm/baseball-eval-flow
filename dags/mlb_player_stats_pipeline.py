@@ -137,13 +137,12 @@ def mlb_player_stats_pipeline():
             result = subprocess.run(
                 cmd,
                 cwd=dbt_dir,
-                capture_output=True,
-                text=True,
+                check=False,
             )
             if result.returncode != 0:
                 raise RuntimeError(
-                    f"dbt command failed: {' '.join(cmd)}\n"
-                    f"stdout: {result.stdout}\nstderr: {result.stderr}"
+                    f"dbt command failed (exit {result.returncode}): "
+                    f"{' '.join(cmd)} — see task log for dbt output"
                 )
 
     @task()
