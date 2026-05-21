@@ -27,6 +27,7 @@ x-prod-airflow: &prod-airflow
     MLB_OFFLOAD_CONN_ID: ${MLB_OFFLOAD_CONN_ID:-snowflake-baseball}
     DBT_TARGET: ${DBT_TARGET:-prod}
     DBT_PROFILES_DIR: /app/dbt
+    AIRFLOW_PROJ_DIR: /app
     # Snowflake credentials for dbt run_dbt_task (see dbt/profiles.yml prod target)
     SNOWFLAKE_ACCOUNT: ${SNOWFLAKE_ACCOUNT}
     SNOWFLAKE_USER: ${SNOWFLAKE_USER}
