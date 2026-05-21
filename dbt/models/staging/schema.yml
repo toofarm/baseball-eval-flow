@@ -3,7 +3,7 @@ version: 2
 sources:
   - name: mlb
     description: Raw MLB data loaded by Airflow from schedule and boxscore APIs
-    database: "{{ target.dbname }}"
+    database: "{{ target.database }}"
     schema: "{{ target.schema }}"
     tables:
       - name: staging_schedule
