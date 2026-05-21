@@ -17,6 +17,7 @@ COPY dags/ /opt/airflow/dags/
 COPY config/ /opt/airflow/config/
 COPY --chown=airflow:0 dbt/ /app/dbt/
 COPY --chown=airflow:0 src/ /app/src/
+RUN chmod -R g+rwX /app/dbt
 COPY schema/ /opt/airflow/schema/
 
 # dags resolve DBT via AIRFLOW_PROJ_DIR (see dags/mlb_player_stats_pipeline.py)

@@ -61,7 +61,7 @@ agg_7 as (
         sum(coalesce(f.fld_chances, 0)) as fld_chances
     from fact f
     join dim_game g on f.game_pk = g.game_pk
-    where g.game_date > '{{ as_of_date }}'::date - 7
+    where g.game_date > dateadd('day', -7, '{{ as_of_date }}'::date)
       and g.game_date <= '{{ as_of_date }}'::date
       and f.player_id in (select player_id from players_to_update)
     group by f.player_id
@@ -105,7 +105,7 @@ agg_30 as (
         sum(coalesce(f.fld_chances, 0)) as fld_chances
     from fact f
     join dim_game g on f.game_pk = g.game_pk
-    where g.game_date > '{{ as_of_date }}'::date - 30
+    where g.game_date > dateadd('day', -30, '{{ as_of_date }}'::date)
       and g.game_date <= '{{ as_of_date }}'::date
       and f.player_id in (select player_id from players_to_update)
     group by f.player_id
