@@ -101,6 +101,32 @@ with_ip as (
         end as pit_ip
     from parsed
 ),
+-- Closest-season lookup. Pre-rank constants once per distinct player season
+-- (Snowflake can't decorrelate a `lateral ... order by ... limit 1` when this view
+-- is inlined into a downstream materialization).
+seasons_in_use as (
+    select distinct season from with_ip
+),
+ranked_constants as (
+    select
+        s.season as p_season,
+        c.woba,
+        c.woba_scale,
+        c.w_bb,
+        c.w_hbp,
+        c.w_1b,
+        c.w_2b,
+        c.w_3b,
+        c.w_hr,
+        c.r_per_pa,
+        c.c_fip,
+        row_number() over (partition by s.season order by abs(c.season - s.season)) as rn
+    from seasons_in_use s
+    cross join constants c
+),
+closest_constant as (
+    select * from ranked_constants where rn = 1
+),
 with_constants as (
     select
         p.*,
@@ -115,11 +141,7 @@ with_constants as (
         c.r_per_pa as c_r_per_pa,
         c.c_fip as c_c_fip
     from with_ip p
-    left join lateral (
-        select * from constants c0
-        order by abs(c0.season - p.season)
-        limit 1
-    ) c on true
+    left join closest_constant c on c.p_season = p.season
 )
 select
     game_pk,

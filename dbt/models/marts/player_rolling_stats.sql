@@ -116,6 +116,30 @@ combined as (
     union all
     select * from agg_30
 ),
+-- Closest-season lookup. Pre-rank constants once per distinct season
+-- (Snowflake can't decorrelate `lateral ... order by ... limit 1`).
+seasons_in_use as (
+    select distinct season from combined
+),
+ranked_constants as (
+    select
+        s.season as p_season,
+        c.woba,
+        c.woba_scale,
+        c.w_bb,
+        c.w_hbp,
+        c.w_1b,
+        c.w_2b,
+        c.w_3b,
+        c.w_hr,
+        c.r_per_pa,
+        row_number() over (partition by s.season order by abs(c.season - s.season)) as rn
+    from seasons_in_use s
+    cross join constants c
+),
+closest_constant as (
+    select * from ranked_constants where rn = 1
+),
 with_constants as (
     select
         a.*,
@@ -129,11 +153,7 @@ with_constants as (
         c.w_hr as c_w_hr,
         c.r_per_pa as c_r_per_pa
     from combined a
-    join lateral (
-        select * from constants c0
-        order by abs(c0.season - a.season)
-        limit 1
-    ) c on true
+    join closest_constant c on c.p_season = a.season
 )
 select
     w.player_id,
