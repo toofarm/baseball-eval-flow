@@ -1,0 +1,10 @@
+version: 2
+
+sources:
+  - name: ml
+    description: Tables populated by the ml_predictions_pipeline DAG (Python loader, not dbt).
+    database: "{{ target.database }}"
+    schema: "{{ target.schema }}"
+    tables:
+      - name: predictions
+        description: One row per (game_pk, player_id, model_type) — next-game predictions written by src.load.predictions.load_predictions.

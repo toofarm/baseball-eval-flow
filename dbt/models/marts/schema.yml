@@ -122,3 +122,23 @@ models:
         description: Average release velocity in mph (null if no pitches in group had startSpeed)
       - name: avg_spin_rate
         description: Average spin rate in rpm (null if no pitches in group had spinRate)
+      - name: avg_break_vertical_induced
+        description: Average induced (gravity-removed) vertical break in inches
+      - name: avg_break_horizontal
+        description: Average horizontal break in inches
+      - name: pct_swinging_strike
+        description: "Share (0-100) of pitches of this type that produced a swinging strike or foul tip (call_code in 'S','W','T')"
+        tests:
+          - not_null
+      - name: pct_called_strike
+        description: Share (0-100) of pitches of this type taken for a called strike
+        tests:
+          - not_null
+      - name: pct_in_play
+        description: Share (0-100) of pitches of this type that were put in play
+        tests:
+          - not_null
+      - name: pct_home_run
+        description: Share (0-100) of pitches of this type that resulted in a home run
+        tests:
+          - not_null

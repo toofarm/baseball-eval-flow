@@ -4,21 +4,17 @@
     )
 }}
 
--- Per-pitcher pitch-arsenal roll-up. Grain: (season, pitcher_id, pitch_type_code).
+-- League-wide rollup of pitch metrics. Grain: (season, pitch_type_code).
 --
--- usage_pct is computed against the pitcher's CLASSIFIED pitches only (pitches
--- where pitch_type_code is null are excluded from both numerator and denominator),
--- so per-pitcher percentages sum to 100.
+-- Aggregates fact_pitch directly (rather than pitcher_pitch_arsenal) so the
+-- league averages are pitch-weighted: a pitcher who threw 1,000 fastballs
+-- contributes proportionally more to the league average velocity than a
+-- pitcher who threw 50. The alternative (average-of-pitcher-averages) would
+-- weight every pitcher equally and skew toward small-sample relievers.
 --
--- Outcome metrics:
---   pct_swinging_strike  : whiffs and foul-tips (call_code in 'S','W','T') as a
---                          share of all pitches of this type. Pitch-level — every
---                          whiff counts, not just at-bat-ending ones.
---   pct_called_strike    : call_code = 'C'
---   pct_in_play          : details.isInPlay = true
---   pct_home_run         : pitches where is_in_play AND at_bat_event = 'Home Run'.
---                          The is_in_play filter pinpoints the actual HR pitch
---                          (at_bat_event is denormalized onto every pitch of the AB).
+-- pct_of_league_mix is each pitch type's share of total league pitches in the
+-- season. Classified pitches only (null pitch_type_code excluded), so the
+-- percentages sum to 100 within each season.
 
 with pitches as (
     select
@@ -38,10 +34,10 @@ with pitches as (
 ),
 by_type as (
     select
-        pitcher_id,
         season,
         pitch_type_code,
         count(*)                                                                   as n_pitches,
+        count(distinct pitcher_id)                                                 as n_pitchers,
         avg(start_speed)::numeric(5, 2)                                            as avg_start_speed,
         avg(spin_rate)::numeric(7, 1)                                              as avg_spin_rate,
         avg(break_vertical_induced)::numeric(5, 2)                                 as avg_break_vertical_induced,
@@ -51,22 +47,23 @@ by_type as (
         sum(case when is_in_play then 1 else 0 end)                                as n_in_play,
         sum(case when is_in_play and at_bat_event = 'Home Run' then 1 else 0 end)  as n_home_run
     from pitches
-    group by pitcher_id, season, pitch_type_code
+    group by season, pitch_type_code
 ),
-totals as (
+season_totals as (
     select
-        pitcher_id,
         season,
         sum(n_pitches) as total_pitches
     from by_type
-    group by pitcher_id, season
+    group by season
 )
 select
-    b.pitcher_id,
     b.season,
     b.pitch_type_code,
+    pt.pitch_type_name,
+    pt.pitch_family,
     b.n_pitches,
-    round(100.0 * b.n_pitches / t.total_pitches, 2)::numeric(5, 2)                 as usage_pct,
+    b.n_pitchers,
+    round(100.0 * b.n_pitches / st.total_pitches, 2)::numeric(5, 2)                as pct_of_league_mix,
     b.avg_start_speed,
     b.avg_spin_rate,
     b.avg_break_vertical_induced,
@@ -76,5 +73,6 @@ select
     round(100.0 * b.n_in_play / b.n_pitches, 2)::numeric(5, 2)                     as pct_in_play,
     round(100.0 * b.n_home_run / b.n_pitches, 4)::numeric(7, 4)                    as pct_home_run
 from by_type b
-join totals t on t.pitcher_id = b.pitcher_id and t.season = b.season
-order by b.pitcher_id, b.season, b.pitch_type_code
+join season_totals st on st.season = b.season
+left join {{ ref('dim_pitch_type') }} pt on pt.pitch_type_code = b.pitch_type_code
+order by b.season, b.pitch_type_code

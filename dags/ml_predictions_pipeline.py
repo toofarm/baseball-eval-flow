@@ -5,7 +5,9 @@ Runs at 6am UTC (after main pipeline's rolling stats). Reads from player_rolling
 """
 
 import os
+import subprocess
 from datetime import timedelta
+from pathlib import Path
 
 import pendulum
 from airflow.sdk import dag, task
@@ -17,6 +19,11 @@ from src.extract import get_schedule_for_date
 from src.load.audit import check_freshness, record_load_audit
 from src.load.connection import get_offload_hook
 from src.load.predictions import load_predictions
+from src.load.supabase import (
+    ML_PIPELINE_TABLES,
+    get_supabase_hook,
+    offload_all,
+)
 from src.ml.features import build_batter_training_data, build_pitcher_training_data
 from src.ml.predict import generate_predictions
 from src.ml.players import ScheduledGame
@@ -26,6 +33,10 @@ FAILURE_ALERT_EMAILS = ["alerts@example.com"]
 ML_MODEL_DIR = os.environ.get("ML_MODEL_DIR", "/opt/airflow/data/ml")
 TRAINING_LOOKBACK_DAYS = 730  # ~2 seasons
 VALIDATION_DAYS = 30
+
+# dbt project path (mounted at /opt/airflow/app in Docker)
+DBT_PROJECT_DIR = Path(os.environ.get(
+    "AIRFLOW_PROJ_DIR", "/opt/airflow/app")) / "dbt"
 
 
 @dag(
@@ -293,6 +304,44 @@ def ml_predictions_pipeline():
         finally:
             conn.close()
 
+    @task()
+    def build_app_player_predictions_task() -> None:
+        """Build the app_player_predictions dbt view (joins predictions to dim_player).
+
+        Selective `dbt run --select app_player_predictions` so we don't rebuild
+        the rest of the project — that's mlb_player_stats_pipeline's job.
+        """
+        dbt_dir = str(DBT_PROJECT_DIR)
+        dbt_target = os.environ.get("DBT_TARGET", "prod")
+        cmd = [
+            "dbt", "run",
+            "--project-dir", dbt_dir,
+            "--target", dbt_target,
+            "--select", "app_player_predictions",
+        ]
+        result = subprocess.run(cmd, cwd=dbt_dir, check=False)
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"dbt run --select app_player_predictions failed "
+                f"(exit {result.returncode}) — see task log for dbt output"
+            )
+
+    @task()
+    def offload_to_supabase_task(
+        conn_id: Optional[str] = None,
+        supabase_conn_id: Optional[str] = None,
+    ) -> dict[str, int]:
+        """Upsert app_player_predictions into Supabase analytics schema."""
+        sf_conn = get_offload_hook(conn_id).get_conn()
+        sb_conn = get_supabase_hook(supabase_conn_id).get_conn()
+        try:
+            results = offload_all(sf_conn, sb_conn, ML_PIPELINE_TABLES)
+            sb_conn.commit()
+            return results
+        finally:
+            sf_conn.close()
+            sb_conn.close()
+
     # Task flow: freshness gate first, then rolling stats and schedule
     freshness = check_upstream_freshness()
     check = check_rolling_stats_ready()
@@ -311,7 +360,16 @@ def ml_predictions_pipeline():
     preds.set_upstream(train_batter_hgb)
     preds.set_upstream(train_pitcher_hgb)
     load_result = load_predictions_task(cast(list[dict[str, Any]], preds))
-    record_load_audit_task().set_upstream(load_result)
+    audit_task = record_load_audit_task()
+    audit_task.set_upstream(load_result)
+
+    # Reverse-ETL: build app-facing view in Snowflake, then upsert into Supabase.
+    # Runs after audit so a Supabase outage doesn't block the freshness signal
+    # that downstream consumers depend on.
+    build_view_task = build_app_player_predictions_task()
+    build_view_task.set_upstream(audit_task)
+    offload_task = offload_to_supabase_task()
+    offload_task.set_upstream(build_view_task)
 
 
 ml_predictions_pipeline()

@@ -26,6 +26,11 @@ from src.transform.validation import (
 
 from src.extract.streaming_boxscore import fetch_and_load_player_stats_batched
 from src.extract.streaming_play_by_play import fetch_and_load_play_by_play_batched
+from src.load.supabase import (
+    STATS_PIPELINE_TABLES,
+    get_supabase_hook,
+    offload_all,
+)
 
 # Environment variables for batch streaming
 GAME_BATCH_SIZE = int(os.environ.get("MLB_GAME_BATCH_SIZE", "5"))
@@ -210,6 +215,26 @@ def mlb_player_stats_pipeline():
         finally:
             conn.close()
 
+    @task()
+    def offload_to_supabase_task(
+        conn_id: Optional[str] = None,
+        supabase_conn_id: Optional[str] = None,
+    ) -> dict[str, int]:
+        """Copy app-facing dbt views from Snowflake into Supabase analytics schema.
+
+        Runs after the freshness audit so a Supabase outage doesn't block
+        downstream pipelines (ml_predictions) that gate on the audit.
+        """
+        sf_conn = get_offload_hook(conn_id).get_conn()
+        sb_conn = get_supabase_hook(supabase_conn_id).get_conn()
+        try:
+            results = offload_all(sf_conn, sb_conn, STATS_PIPELINE_TABLES)
+            sb_conn.commit()
+            return results
+        finally:
+            sf_conn.close()
+            sb_conn.close()
+
     # Check data readiness (sensor fails on empty API response so run doesn't reschedule forever)
     sensor_task = check_mlb_data_readiness()
 
@@ -239,7 +264,14 @@ def mlb_player_stats_pipeline():
     validate_task.set_upstream(dbt_task)
 
     # Record load for freshness checks
-    record_load_audit_task().set_upstream(validate_task)
+    audit_task = record_load_audit_task()
+    audit_task.set_upstream(validate_task)
+
+    # Reverse-ETL: push consumer-facing dbt views into Supabase analytics schema.
+    # Runs downstream of audit so a Supabase outage doesn't block ml_predictions
+    # (which only gates on pipeline_load_audit).
+    offload_task = offload_to_supabase_task()
+    offload_task.set_upstream(audit_task)
 
 
 mlb_player_stats_pipeline()

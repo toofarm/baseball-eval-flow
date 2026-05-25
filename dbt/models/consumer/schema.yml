@@ -1,0 +1,65 @@
+version: 2
+
+models:
+  - name: app_pitcher_arsenal
+    description: >
+      Consumer-facing denormalization of pitcher_pitch_arsenal for the Supabase
+      web app. Adds pitcher_name, pitch_type_name, pitch_family so the app can
+      render arsenal rows without joining. Grain: (season, pitcher_id, pitch_type_code).
+    columns:
+      - name: pitcher_id
+        tests: [not_null]
+      - name: season
+        tests: [not_null]
+      - name: pitch_type_code
+        tests: [not_null]
+      - name: usage_pct
+        tests: [not_null]
+
+  - name: app_league_pitch_summary
+    description: >
+      League-wide pitch metrics rollup. Grain: (season, pitch_type_code).
+      Averages are pitch-weighted (sums across fact_pitch, not averages of
+      pitcher averages). Use this view to answer 'how does <pitcher>'s slider
+      compare to the league?'-style questions.
+    columns:
+      - name: season
+        tests: [not_null]
+      - name: pitch_type_code
+        tests: [not_null]
+      - name: pct_of_league_mix
+        tests: [not_null]
+      - name: n_pitches
+        tests: [not_null]
+      - name: n_pitchers
+        description: Distinct pitchers who threw this pitch type in this season
+        tests: [not_null]
+
+  - name: app_player_rolling_stats
+    description: >
+      Consumer-facing denormalization of player_rolling_stats with player_name.
+      Grain unchanged: (player_id, as_of_date, window_days). window_days in (7, 30).
+    columns:
+      - name: player_id
+        tests: [not_null]
+      - name: as_of_date
+        tests: [not_null]
+      - name: window_days
+        tests:
+          - not_null
+          - accepted_values:
+              values: [7, 30]
+
+  - name: app_player_predictions
+    description: >
+      Consumer-facing denormalization of the predictions table with player_name.
+      Grain unchanged: (game_pk, player_id, model_type).
+    columns:
+      - name: game_pk
+        tests: [not_null]
+      - name: player_id
+        tests: [not_null]
+      - name: model_type
+        tests: [not_null]
+      - name: as_of_date
+        tests: [not_null]
