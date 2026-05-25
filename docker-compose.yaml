@@ -129,7 +129,7 @@ services:
       - |
         set -e
         echo "Running schema migrations..."
-        for f in 00_staging 01_dims 02_fact_game_state 03_player_rolling_stats 04_stat_constants 04a_add_c_fip 05_predictions 05a_add_model_type 06_pipeline_load_audit; do
+        for f in 00_staging 00b_staging_play_by_play 01_dims 02_fact_game_state 03_player_rolling_stats 04_stat_constants 04a_add_c_fip 05_predictions 05a_add_model_type 06_pipeline_load_audit 07_fact_pitch; do
           echo "Applying /schema/$${f}.sql"
           psql -v ON_ERROR_STOP=1 -f "/schema/$${f}.sql"
         done

@@ -25,6 +25,7 @@ from src.transform.validation import (
 )
 
 from src.extract.streaming_boxscore import fetch_and_load_player_stats_batched
+from src.extract.streaming_play_by_play import fetch_and_load_play_by_play_batched
 
 # Environment variables for batch streaming
 GAME_BATCH_SIZE = int(os.environ.get("MLB_GAME_BATCH_SIZE", "5"))
@@ -99,6 +100,23 @@ def mlb_player_stats_pipeline():
             )
             conn.commit()
             return {"schedule": n_schedule, "player_stats": n_stats}
+        finally:
+            conn.close()
+
+    @task()
+    def load_play_by_play_task(
+        schedule_games: List[ScheduleGame],
+        conn_id: Optional[str] = None,
+    ) -> int:
+        """Fetch and load play-by-play (one JSONB row per game) into staging."""
+        hook = get_offload_hook(conn_id)
+        conn = hook.get_conn()
+        try:
+            n_games = fetch_and_load_play_by_play_batched(
+                conn, schedule_games, GAME_BATCH_SIZE
+            )
+            conn.commit()
+            return n_games
         finally:
             conn.close()
 
@@ -201,14 +219,18 @@ def mlb_player_stats_pipeline():
     validated_schedule = validate_schedule_data(
         cast(List[ScheduleGame], raw_games))
 
-    # Load raw data to staging tables
+    # Load raw data to staging tables (boxscore + play-by-play run in parallel)
     load_result = load_staging_task(
         cast(List[ScheduleGame], validated_schedule),
     )
+    pbp_result = load_play_by_play_task(
+        cast(List[ScheduleGame], validated_schedule),
+    )
 
-    # Run dbt: seed constants, then build dims, fact, rolling stats
+    # Run dbt: seed constants, then build dims, fact, rolling stats, fact_pitch
     dbt_task = run_dbt_task()
     dbt_task.set_upstream(load_result)
+    dbt_task.set_upstream(pbp_result)
 
     # Validate game count in dim_game matches schedule
     validate_task = validate_game_row_count(

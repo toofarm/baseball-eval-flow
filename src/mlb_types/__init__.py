@@ -36,6 +36,12 @@ from src.mlb_types.game import (
     VenueRef as GameVenueRef,
     TransformedGameData,
 )
+from src.mlb_types.play_by_play import (
+    PitchRow,
+    Play,
+    PlayByPlayResponse,
+    PlayEvent,
+)
 
 __all__ = [
     # game
@@ -67,4 +73,9 @@ __all__ = [
     "TransformedPlayerData",
     "PlayerStatsWithContext",
     "LoadReadyPlayerGame",
+    # play_by_play
+    "PitchRow",
+    "Play",
+    "PlayByPlayResponse",
+    "PlayEvent",
 ]

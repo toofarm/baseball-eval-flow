@@ -1,0 +1,24 @@
+pitch_type_code,pitch_type_name,pitch_family
+FF,Four-Seam Fastball,fastball
+FT,Two-Seam Fastball,fastball
+FA,Fastball,fastball
+FC,Cutter,fastball
+SI,Sinker,fastball
+FS,Splitter,offspeed
+SF,Split-Finger,offspeed
+CH,Changeup,offspeed
+SC,Screwball,offspeed
+FO,Forkball,offspeed
+SL,Slider,breaking
+ST,Sweeper,breaking
+SV,Slurve,breaking
+CU,Curveball,breaking
+KC,Knuckle Curve,breaking
+CS,Slow Curve,breaking
+KN,Knuckleball,other
+EP,Eephus,other
+IN,Intentional Ball,other
+PO,Pitchout,other
+AB,Automatic Ball,other
+AS,Automatic Strike,other
+UN,Unknown,other

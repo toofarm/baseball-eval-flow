@@ -190,3 +190,52 @@ def load_staging_player_stats(
             cur.executemany(_MERGE_PLAYER_STATS_SQL, batch)
             total_loaded += len(batch)
     return total_loaded
+
+
+_MERGE_PLAY_BY_PLAY_SQL = """
+    MERGE INTO staging_play_by_play AS tgt
+    USING (
+        SELECT
+            %s AS game_pk,
+            PARSE_JSON(%s) AS all_plays
+    ) AS src
+    ON tgt.game_pk = src.game_pk
+    WHEN MATCHED THEN UPDATE SET
+        all_plays = src.all_plays,
+        load_date = CURRENT_TIMESTAMP
+    WHEN NOT MATCHED THEN INSERT (
+        game_pk, all_plays
+    ) VALUES (
+        src.game_pk, src.all_plays
+    )
+"""
+
+
+def load_staging_play_by_play(
+    conn: Any,
+    pbp_by_game: Sequence[tuple[int, Any]],
+) -> int:
+    """Merge play-by-play JSON blobs into staging_play_by_play.
+
+    ``pbp_by_game`` is a sequence of ``(game_pk, pbp_json)`` tuples, where
+    ``pbp_json`` is the full playByPlay response dict (we persist only the
+    ``allPlays`` array to keep storage tight). Returns rows submitted.
+    """
+    if not pbp_by_game:
+        return 0
+
+    rows = []
+    for game_pk, pbp in pbp_by_game:
+        if pbp is None:
+            continue
+        all_plays = pbp.get("allPlays") if isinstance(pbp, dict) else None
+        if not all_plays:
+            continue
+        rows.append((int(game_pk), json.dumps(all_plays)))
+
+    if not rows:
+        return 0
+
+    with conn.cursor() as cur:
+        cur.executemany(_MERGE_PLAY_BY_PLAY_SQL, rows)
+    return len(rows)
