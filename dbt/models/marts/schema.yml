@@ -79,7 +79,7 @@ models:
       - name: break_vertical_induced
         description: Induced vertical break in inches (gravity-removed; key for slider/curveball comparisons)
       - name: half_inning
-        description: 'top' or 'bottom'
+        description: top or bottom
         tests:
           - not_null
           - accepted_values:
