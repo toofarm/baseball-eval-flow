@@ -61,17 +61,28 @@ docker compose -f docker-compose.yaml -f docker-compose.prod.yaml pull
 docker compose -f docker-compose.yaml -f docker-compose.prod.yaml up -d
 ```
 
-- [ ] `curl -fsS https://<AIRFLOW_PUBLIC_HOST>/api/v2/version` (or open the UI).
-- [ ] Scheduler / worker health checks green (`docker compose ... ps`).
-- [ ] Run a small DAG smoke test.
+- [X] `curl -fsS https://<AIRFLOW_PUBLIC_HOST>/api/v2/version` (or open the UI).
+- [X] Scheduler / worker health checks green (`docker compose ... ps`).
+- [X] Run a small DAG smoke test.
 
 ## 8. Backups
 
-- [ ] Schedule **Postgres** backups (`pg_dump` or volume snapshots). Metadata loss loses DAG history, variables, and connection secrets stored in Airflow.
+- [X] **Postgres metadata DB**: daily `pg_dump` to an S3-compatible store (DigitalOcean Spaces). See [scripts/backup.sh](../scripts/backup.sh). Required env in the cron user's environment: `BACKUP_BUCKET`, `S3_ENDPOINT`, and `awscli` credentials with write access to that bucket only.
+- [ ] **Retention**: lifecycle rule on the bucket to expire objects after 30 days (set via the Spaces UI or `aws s3api put-bucket-lifecycle-configuration`). The script does not delete old backups itself.
+- [ ] **Cron**: schedule `backup.sh` daily (UTC 03:00 is a reasonable default — DAG runs at 02:00 UTC, so this captures the day's metadata):
+  ```
+  0 3 * * * BACKUP_BUCKET=s3://baseball-eval-backups S3_ENDPOINT=https://nyc3.digitaloceanspaces.com /home/common/opt/baseball-eval-flow/scripts/backup.sh >> /var/log/baseball-eval-backup.log 2>&1
+  ```
+- [ ] **Restore drill**: documented and exercised at least quarterly. Restoring loses no data only if the **Fernet key** (`AIRFLOW__CORE__FERNET_KEY`) on the new host matches the one the dump was taken under — otherwise encrypted connection secrets are unrecoverable. The Fernet key and `rsa_key.p8` are held in the operator's password manager, not in this backup pipeline.
+- [ ] **Snowflake**: confirm Time Travel retention is ≥ 7 days on `baseball_eval_prod`:
+  ```sql
+  SHOW PARAMETERS LIKE 'DATA_RETENTION_TIME_IN_DAYS' IN DATABASE baseball_eval_prod;
+  ```
+  Snowflake's Time Travel + Fail-Safe is the right tool for warehouse-side recovery; no warehouse export needed from this host.
 
 ## 9. Deploy updates after a merge to `main`
 
-- [ ] CI finishes pushing a new `:main` image.
-- [ ] On the droplet: `docker compose -f docker-compose.yaml -f docker-compose.prod.yaml pull && docker compose -f docker-compose.yaml -f docker-compose.prod.yaml up -d`.
+- [X] CI finishes pushing a new `:main` image.
+- [X] On the droplet: `docker compose -f docker-compose.yaml -f docker-compose.prod.yaml pull && docker compose -f docker-compose.yaml -f docker-compose.prod.yaml up -d`.
 
 Optional: add a GitHub Actions job that SSHs into the droplet and runs the same commands; store `SSH_PRIVATE_KEY`, host, and `known_hosts` in repo secrets.

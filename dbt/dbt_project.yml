@@ -34,6 +34,11 @@ seeds:
         w_hr: numeric
         r_per_pa: numeric
         c_fip: numeric
+    dim_pitch_type:
+      +column_types:
+        pitch_type_code: varchar(4)
+        pitch_type_name: varchar(64)
+        pitch_family: varchar(16)
 
 models:
   baseball_eval:

@@ -11,3 +11,114 @@ models:
     description: Fact table - one row per player per game with batting/pitching/fielding stats
   - name: player_rolling_stats
     description: Rolling 7d and 30d stats per player, updated incrementally
+
+  - name: dim_pitch_type
+    description: Conformed dimension of MLB pitch types (FF, SL, CH, ...) and pitch family groupings
+    columns:
+      - name: pitch_type_code
+        description: MLB pitch type code (primary key)
+        tests:
+          - not_null
+          - unique
+      - name: pitch_type_name
+        description: Human-readable pitch type name
+        tests:
+          - not_null
+      - name: pitch_family
+        description: Coarse family ('fastball' | 'breaking' | 'offspeed' | 'other')
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['fastball', 'breaking', 'offspeed', 'other']
+
+  - name: fact_pitch
+    description: >
+      Fact table at pitch grain (one row per pitch). Conforms to dim_game,
+      dim_player (as pitcher_id and batter_id), and dim_pitch_type. Pre-pitch
+      counts are derived in this model from the API's post-pitch counts.
+    columns:
+      - name: game_pk
+        description: MLB game ID
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_game')
+              field: game_pk
+      - name: at_bat_index
+        description: Sequential at-bat index within the game
+        tests:
+          - not_null
+      - name: pitch_number
+        description: 1-indexed pitch number within the at-bat
+        tests:
+          - not_null
+      - name: pitcher_id
+        description: MLB player ID of the pitcher
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_player')
+              field: player_id
+      - name: batter_id
+        description: MLB player ID of the batter
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_player')
+              field: player_id
+      - name: pitch_type_code
+        description: Foreign key to dim_pitch_type; nullable when API omits it
+        tests:
+          - relationships:
+              to: ref('dim_pitch_type')
+              field: pitch_type_code
+      - name: start_speed
+        description: Pitch release speed in mph
+      - name: spin_rate
+        description: Spin rate in rpm
+      - name: break_vertical_induced
+        description: Induced vertical break in inches (gravity-removed; key for slider/curveball comparisons)
+      - name: half_inning
+        description: 'top' or 'bottom'
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['top', 'bottom']
+
+  - name: pitcher_pitch_arsenal
+    description: >
+      Per-pitcher pitch-arsenal roll-up at (season, pitcher_id, pitch_type_code)
+      grain. usage_pct is computed against the pitcher's classified pitches only
+      (rows with null pitch_type_code are excluded from both numerator and
+      denominator) and therefore sums to 100 per (pitcher, season).
+    columns:
+      - name: pitcher_id
+        description: MLB player ID of the pitcher
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_player')
+              field: player_id
+      - name: season
+        description: Season year (from dim_game.season)
+        tests:
+          - not_null
+      - name: pitch_type_code
+        description: MLB pitch type code (FF, SL, CH, ...)
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_pitch_type')
+              field: pitch_type_code
+      - name: n_pitches
+        description: Number of pitches of this type thrown by this pitcher in this season
+        tests:
+          - not_null
+      - name: usage_pct
+        description: Percentage (0-100) of this pitcher's classified pitches that were this type
+        tests:
+          - not_null
+      - name: avg_start_speed
+        description: Average release velocity in mph (null if no pitches in group had startSpeed)
+      - name: avg_spin_rate
+        description: Average spin rate in rpm (null if no pitches in group had spinRate)

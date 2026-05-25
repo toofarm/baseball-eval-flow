@@ -10,6 +10,8 @@ sources:
         description: One row per game from MLB schedule API
       - name: staging_player_stats
         description: One row per (game_pk, player_id) from boxscore API
+      - name: staging_play_by_play
+        description: One row per game_pk; entire allPlays JSON array stored verbatim
 
 models:
   - name: stg_schedule
@@ -31,3 +33,32 @@ models:
         description: MLB player ID
       - name: team_id
         description: Team ID for this appearance
+
+  - name: stg_play_by_play
+    description: >
+      Flattens staging_play_by_play.all_plays into one row per pitch.
+      Emits POST-pitch counts (balls/strikes/outs as reported by the API);
+      fact_pitch derives the pre-pitch counts via window functions.
+    columns:
+      - name: game_pk
+        description: MLB game ID
+        tests:
+          - not_null
+      - name: at_bat_index
+        description: Sequential at-bat index within the game
+        tests:
+          - not_null
+      - name: pitch_number
+        description: 1-indexed pitch number within the at-bat
+        tests:
+          - not_null
+      - name: pitcher_id
+        description: MLB player ID of the pitcher
+        tests:
+          - not_null
+      - name: batter_id
+        description: MLB player ID of the batter
+        tests:
+          - not_null
+      - name: pitch_type_code
+        description: Pitch type code from details.type.code (e.g. FF, SL, CH); null when API omits it
