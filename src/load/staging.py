@@ -110,49 +110,74 @@ def _to_json(obj: Any) -> str | None:
     return json.dumps(obj)
 
 
-_MERGE_PLAYER_STATS_SQL = """
-    MERGE INTO staging_player_stats AS tgt
-    USING (
-        SELECT
-            %s AS game_pk,
-            %s AS player_id,
-            %s AS team_id,
-            %s AS full_name,
-            %s AS position_type,
-            %s AS position_code,
-            %s AS position_name,
-            PARSE_JSON(%s) AS batting,
-            PARSE_JSON(%s) AS pitching,
-            PARSE_JSON(%s) AS fielding
-    ) AS src
-    ON tgt.game_pk = src.game_pk AND tgt.player_id = src.player_id
-    WHEN MATCHED THEN UPDATE SET
-        team_id = src.team_id,
-        full_name = src.full_name,
-        position_type = src.position_type,
-        position_code = src.position_code,
-        position_name = src.position_name,
-        batting = src.batting,
-        pitching = src.pitching,
-        fielding = src.fielding,
-        load_date = CURRENT_TIMESTAMP
-    WHEN NOT MATCHED THEN INSERT (
-        game_pk, player_id, team_id, full_name, position_type, position_code,
-        position_name, batting, pitching, fielding
-    ) VALUES (
-        src.game_pk, src.player_id, src.team_id, src.full_name,
-        src.position_type, src.position_code, src.position_name,
-        src.batting, src.pitching, src.fielding
-    )
-"""
+# Number of bind parameters per player_stats row. Used to build the multi-row
+# VALUES clause below — must stay in sync with the tuple in load_staging_player_stats.
+_PLAYER_STATS_COLS_PER_ROW = 10
+
+
+def _build_player_stats_merge_sql(n_rows: int) -> str:
+    """Build a single MERGE statement that handles ``n_rows`` source rows.
+
+    Snowflake's ``executemany`` is only optimized for plain ``INSERT … VALUES``;
+    for ``MERGE`` it falls back to N serial round-trips, which dominated wall
+    time (~900 rows × ~1s round-trip ≈ 12 min). Folding all rows into one
+    ``USING (SELECT … FROM VALUES (…), (…), …)`` collapses that to one round-trip
+    per chunk.
+    """
+    if n_rows < 1:
+        raise ValueError("n_rows must be >= 1")
+    placeholder_row = "(" + ", ".join(["%s"] * _PLAYER_STATS_COLS_PER_ROW) + ")"
+    values_block = ", ".join([placeholder_row] * n_rows)
+    return f"""
+        MERGE INTO staging_player_stats AS tgt
+        USING (
+            SELECT
+                column1 AS game_pk,
+                column2 AS player_id,
+                column3 AS team_id,
+                column4 AS full_name,
+                column5 AS position_type,
+                column6 AS position_code,
+                column7 AS position_name,
+                PARSE_JSON(column8) AS batting,
+                PARSE_JSON(column9) AS pitching,
+                PARSE_JSON(column10) AS fielding
+            FROM VALUES {values_block}
+        ) AS src
+        ON tgt.game_pk = src.game_pk AND tgt.player_id = src.player_id
+        WHEN MATCHED THEN UPDATE SET
+            team_id = src.team_id,
+            full_name = src.full_name,
+            position_type = src.position_type,
+            position_code = src.position_code,
+            position_name = src.position_name,
+            batting = src.batting,
+            pitching = src.pitching,
+            fielding = src.fielding,
+            load_date = CURRENT_TIMESTAMP
+        WHEN NOT MATCHED THEN INSERT (
+            game_pk, player_id, team_id, full_name, position_type, position_code,
+            position_name, batting, pitching, fielding
+        ) VALUES (
+            src.game_pk, src.player_id, src.team_id, src.full_name,
+            src.position_type, src.position_code, src.position_name,
+            src.batting, src.pitching, src.fielding
+        )
+    """
 
 
 def load_staging_player_stats(
     conn: Any,
     stats_with_context: Sequence[PlayerStatsWithContext | dict[str, Any]],
-    batch_size: int = 1000,
+    chunk_size: int = 500,
 ) -> int:
-    """Merge player stats rows into staging_player_stats. Returns number of rows submitted."""
+    """Merge player stats rows into staging_player_stats. Returns rows submitted.
+
+    Each chunk becomes one MERGE statement carrying ``chunk_size`` rows in its
+    USING clause. Default 500 keeps us safely under Snowflake's bind-parameter
+    limit (~16k) at 10 cols/row, and a typical daily load (~900 rows) fits in
+    two round-trips.
+    """
     if not stats_with_context:
         return 0
 
@@ -185,10 +210,12 @@ def load_staging_player_stats(
 
     total_loaded = 0
     with conn.cursor() as cur:
-        for i in range(0, len(rows), batch_size):
-            batch = rows[i : i + batch_size]
-            cur.executemany(_MERGE_PLAYER_STATS_SQL, batch)
-            total_loaded += len(batch)
+        for i in range(0, len(rows), chunk_size):
+            chunk = rows[i : i + chunk_size]
+            sql = _build_player_stats_merge_sql(len(chunk))
+            flat_params = [v for row in chunk for v in row]
+            cur.execute(sql, flat_params)
+            total_loaded += len(chunk)
     return total_loaded
 
 
