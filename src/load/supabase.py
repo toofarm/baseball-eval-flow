@@ -21,8 +21,6 @@ import os
 from dataclasses import dataclass, field
 from typing import Any, Literal, Optional, Sequence
 
-from airflow.providers.postgres.hooks.postgres import PostgresHook  # type: ignore[import-untyped]
-
 DEFAULT_CONN_ID = "supabase-analytics"
 ENV_VAR = "SUPABASE_CONN_ID"
 ANALYTICS_SCHEMA = "analytics"
@@ -33,8 +31,15 @@ def get_supabase_conn_id() -> str:
     return os.environ.get(ENV_VAR, DEFAULT_CONN_ID)
 
 
-def get_supabase_hook(conn_id: Optional[str] = None) -> PostgresHook:
-    """Return a PostgresHook for the configured Supabase connection."""
+def get_supabase_hook(conn_id: Optional[str] = None) -> "PostgresHook":  # noqa: F821
+    """Return a PostgresHook for the configured Supabase connection.
+
+    PostgresHook is imported lazily so that tests (and any other tooling
+    without the Airflow runtime installed) can import this module to access
+    TableSpec / offload_table / offload_all without dragging in airflow.
+    """
+    from airflow.providers.postgres.hooks.postgres import PostgresHook  # type: ignore[import-untyped]
+
     return PostgresHook(postgres_conn_id=conn_id or get_supabase_conn_id())
 
 
