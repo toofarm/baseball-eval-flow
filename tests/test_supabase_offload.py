@@ -69,6 +69,7 @@ def test_stats_pipeline_tables_contain_expected_set():
     assert {t.name for t in STATS_PIPELINE_TABLES} == {
         "pitcher_arsenal",
         "league_pitch_summary",
+        "league_batting_summary",
         "player_rolling_stats",
     }
 
@@ -209,14 +210,15 @@ def test_offload_all_bootstraps_schema_then_runs_each_spec():
     assert set(results.keys()) == {
         "pitcher_arsenal",
         "league_pitch_summary",
+        "league_batting_summary",
         "player_rolling_stats",
     }
     sb_cur = _last_cursor(sb)
     statements = [c.args[0] for c in sb_cur.execute.call_args_list]
     # First statement must be the schema bootstrap.
     assert statements[0] == f"CREATE SCHEMA IF NOT EXISTS {ANALYTICS_SCHEMA}"
-    # And we created all three tables.
+    # One CREATE TABLE per spec.
     create_tables = [
         s for s in statements if s.startswith("CREATE TABLE IF NOT EXISTS")
     ]
-    assert len(create_tables) == 3
+    assert len(create_tables) == len(STATS_PIPELINE_TABLES)

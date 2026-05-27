@@ -35,6 +35,30 @@ models:
         description: Distinct pitchers who threw this pitch type in this season
         tests: [not_null]
 
+  - name: app_league_batting_summary
+    description: >
+      League-wide batting summary. Grain: (season). Aggregates fact_game_state
+      across all batters in the league per season — PA-weighted, computed from
+      summed counts. Regular-season games only (game_type = 'R'); post-season,
+      spring training, and exhibition are excluded. Use this view as the
+      league-average baseline batters are compared against. Note: wRC+ at this
+      grain is normalized to ~100 by construction (calibration check, not
+      analytic). int_player_stats_enriched and player_rolling_stats use the
+      same wRC+ formula, so per-player and rolling-window wRC+ values are on
+      the same scale as this baseline.
+    columns:
+      - name: season
+        tests:
+          - not_null
+          - unique
+      - name: n_batters
+        description: Distinct batters with ≥1 PA in this season
+        tests: [not_null]
+      - name: bat_plate_appearances
+        tests: [not_null]
+      - name: bat_at_bats
+        tests: [not_null]
+
   - name: app_player_rolling_stats
     description: >
       Consumer-facing denormalization of player_rolling_stats with player_name.

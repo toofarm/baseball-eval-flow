@@ -152,6 +152,60 @@ LEAGUE_PITCH_SUMMARY = TableSpec(
 )
 
 
+LEAGUE_BATTING_SUMMARY = TableSpec(
+    name="league_batting_summary",
+    source_query="""
+        SELECT
+            season, n_batters,
+            bat_plate_appearances, bat_at_bats, bat_hits,
+            bat_doubles, bat_triples, bat_home_runs,
+            bat_strike_outs, bat_base_on_balls, bat_intentional_walks,
+            bat_hit_by_pitch, bat_sac_flies, bat_sac_bunts,
+            bat_runs, bat_rbi, bat_stolen_bases, bat_caught_stealing,
+            bat_total_bases,
+            bat_avg, bat_obp, bat_slg, bat_ops, bat_babip,
+            bat_k_pct, bat_bb_pct, bat_home_run_rate,
+            bat_woba, bat_wrc_plus
+        FROM app_league_batting_summary
+    """,
+    columns=[
+        ("season",                 "INTEGER NOT NULL"),
+        ("n_batters",              "INTEGER NOT NULL"),
+        # Counting
+        ("bat_plate_appearances",  "INTEGER NOT NULL"),
+        ("bat_at_bats",            "INTEGER NOT NULL"),
+        ("bat_hits",               "INTEGER NOT NULL"),
+        ("bat_doubles",            "INTEGER NOT NULL"),
+        ("bat_triples",            "INTEGER NOT NULL"),
+        ("bat_home_runs",          "INTEGER NOT NULL"),
+        ("bat_strike_outs",        "INTEGER NOT NULL"),
+        ("bat_base_on_balls",      "INTEGER NOT NULL"),
+        ("bat_intentional_walks",  "INTEGER NOT NULL"),
+        ("bat_hit_by_pitch",       "INTEGER NOT NULL"),
+        ("bat_sac_flies",          "INTEGER NOT NULL"),
+        ("bat_sac_bunts",          "INTEGER NOT NULL"),
+        ("bat_runs",               "INTEGER NOT NULL"),
+        ("bat_rbi",                "INTEGER NOT NULL"),
+        ("bat_stolen_bases",       "INTEGER NOT NULL"),
+        ("bat_caught_stealing",    "INTEGER NOT NULL"),
+        ("bat_total_bases",        "INTEGER NOT NULL"),
+        # Slash + rate
+        ("bat_avg",                "NUMERIC(5, 4)"),
+        ("bat_obp",                "NUMERIC(5, 4)"),
+        ("bat_slg",                "NUMERIC(5, 4)"),
+        ("bat_ops",                "NUMERIC(5, 4)"),
+        ("bat_babip",              "NUMERIC(5, 4)"),
+        ("bat_k_pct",              "NUMERIC(5, 2)"),
+        ("bat_bb_pct",             "NUMERIC(5, 2)"),
+        ("bat_home_run_rate",      "NUMERIC(8, 4)"),
+        # Sabermetric derived
+        ("bat_woba",               "NUMERIC(5, 4)"),
+        ("bat_wrc_plus",           "NUMERIC(6, 2)"),
+    ],
+    strategy="full_refresh",
+)
+
+
 PLAYER_ROLLING_STATS = TableSpec(
     name="player_rolling_stats",
     source_query="""
@@ -240,6 +294,7 @@ PLAYER_PREDICTIONS = TableSpec(
 STATS_PIPELINE_TABLES: list[TableSpec] = [
     PITCHER_ARSENAL,
     LEAGUE_PITCH_SUMMARY,
+    LEAGUE_BATTING_SUMMARY,
     PLAYER_ROLLING_STATS,
 ]
 
