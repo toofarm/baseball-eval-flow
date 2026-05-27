@@ -193,14 +193,22 @@ select
         )
         else null
     end as bat_woba,
+    -- wRC+ = ((wOBA - lgwOBA) / wOBAScale + lgR/PA) / lgR/PA * 100
+    -- True normalized index per FanGraphs (without park-factor adjustment).
+    -- Previously emitted a wRC-like counting value under this column name.
     case
-        when w.bat_plate_appearances > 0 and (w.bat_at_bats + w.bat_base_on_balls - w.bat_ibb + w.bat_sf + w.bat_hbp) > 0
+        when w.bat_plate_appearances > 0
+         and (w.bat_at_bats + w.bat_base_on_balls - w.bat_ibb + w.bat_sf + w.bat_hbp) > 0
+         and w.c_r_per_pa > 0
         then round(
-            ((w.c_w_bb * w.bat_base_on_balls + w.c_w_hbp * w.bat_hbp
-              + w.c_w_1b * (w.bat_hits - w.bat_home_runs - w.bat_doubles - w.bat_triples)
-              + w.c_w_2b * w.bat_doubles + w.c_w_3b * w.bat_triples + w.c_w_hr * w.bat_home_runs)
-             ::numeric / (w.bat_at_bats + w.bat_base_on_balls - w.bat_ibb + w.bat_sf + w.bat_hbp) - w.c_woba)
-            / w.c_woba_scale + w.c_r_per_pa * w.bat_plate_appearances,
+            (
+              ((w.c_w_bb * w.bat_base_on_balls + w.c_w_hbp * w.bat_hbp
+                + w.c_w_1b * (w.bat_hits - w.bat_home_runs - w.bat_doubles - w.bat_triples)
+                + w.c_w_2b * w.bat_doubles + w.c_w_3b * w.bat_triples + w.c_w_hr * w.bat_home_runs)
+               ::numeric / (w.bat_at_bats + w.bat_base_on_balls - w.bat_ibb + w.bat_sf + w.bat_hbp) - w.c_woba)
+              / w.c_woba_scale
+              + w.c_r_per_pa
+            ) / w.c_r_per_pa * 100,
             2
         )
         else null

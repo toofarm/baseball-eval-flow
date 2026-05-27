@@ -183,13 +183,24 @@ select
              / (bat_ab + bat_bb - coalesce(bat_ibb, 0) + bat_sf + coalesce(bat_hbp, 0))
         else null
     end::numeric(5, 4) as bat_woba,
+    -- wRC+ = ((wOBA - lgwOBA) / wOBAScale + lgR/PA) / lgR/PA * 100
+    -- True normalized index per FanGraphs (without park-factor adjustment).
+    -- Previously emitted a wRC-like counting value under this column name.
     case
-        when bat_pa > 0 and (bat_ab + bat_bb - coalesce(bat_ibb, 0) + bat_sf + coalesce(bat_hbp, 0)) > 0
-        then round((((c_w_bb * coalesce(bat_bb, 0) + c_w_hbp * coalesce(bat_hbp, 0)
-              + c_w_1b * (coalesce(bat_hits, 0) - coalesce(bat_hr, 0) - coalesce(bat_2b, 0) - coalesce(bat_3b, 0))
-              + c_w_2b * coalesce(bat_2b, 0) + c_w_3b * coalesce(bat_3b, 0) + c_w_hr * coalesce(bat_hr, 0))
-             / (bat_ab + bat_bb - coalesce(bat_ibb, 0) + bat_sf + coalesce(bat_hbp, 0))) - c_woba)
-            / c_woba_scale + c_r_per_pa * bat_pa, 2)
+        when bat_pa > 0
+         and (bat_ab + bat_bb - coalesce(bat_ibb, 0) + bat_sf + coalesce(bat_hbp, 0)) > 0
+         and c_r_per_pa > 0
+        then round(
+            (
+              (((c_w_bb * coalesce(bat_bb, 0) + c_w_hbp * coalesce(bat_hbp, 0)
+                 + c_w_1b * (coalesce(bat_hits, 0) - coalesce(bat_hr, 0) - coalesce(bat_2b, 0) - coalesce(bat_3b, 0))
+                 + c_w_2b * coalesce(bat_2b, 0) + c_w_3b * coalesce(bat_3b, 0) + c_w_hr * coalesce(bat_hr, 0))
+                / (bat_ab + bat_bb - coalesce(bat_ibb, 0) + bat_sf + coalesce(bat_hbp, 0))
+               ) - c_woba) / c_woba_scale
+              + c_r_per_pa
+            ) / c_r_per_pa * 100,
+            2
+        )
         else null
     end as bat_wrc_plus,
     case
