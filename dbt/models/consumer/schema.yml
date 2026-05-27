@@ -52,7 +52,10 @@ models:
           - not_null
           - unique
       - name: n_batters
-        description: Distinct batters with ≥1 PA in this season
+        description: >
+          Distinct batters who qualified for the season aggregate — i.e. whose
+          season-total PA was at or above mean(PA) - 0.5 * stddev(PA) across
+          all batters in that season. Low-PA cameos are excluded.
         tests: [not_null]
       - name: bat_plate_appearances
         tests: [not_null]

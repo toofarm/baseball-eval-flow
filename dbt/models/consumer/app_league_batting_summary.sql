@@ -17,6 +17,14 @@
 -- spring training, exhibition, and all-star games are excluded so the league
 -- baseline matches the conventional "MLB regular-season average" reference.
 --
+-- Low-sample filter: per season, players whose total PA falls below
+-- mean(PA) - 0.5 * stddev(PA) across all batters in that season are excluded
+-- from the aggregates. This drops pinch-hit pitcher cameos and other
+-- 1-2 PA appearances that would otherwise pull rate stats toward the noise
+-- floor. The 0.5 multiplier is tuned for the right-skewed PA distribution
+-- typical of MLB seasons; larger multipliers (e.g. 2.0) effectively disable
+-- the filter mid-season because the threshold goes <= 0.
+--
 -- Note on wRC+: computed as the true normalized index per FanGraphs (without
 -- park-factor adjustment, which we don't have):
 --   wRC+ = ((wOBA - lgwOBA) / wOBAScale + lgR/PA) / lgR/PA * 100
@@ -58,6 +66,51 @@ per_player_game as (
     where coalesce(f.bat_plate_appearances, 0) > 0
       and g.game_type = 'R'
 ),
+-- Roll per-game rows up to season totals per player. Threshold evaluation
+-- happens at this grain so each batter's full-season PA count is what's
+-- compared to the league cutoff.
+per_player_season as (
+    select
+        season,
+        player_id,
+        sum(pa)                   as pa,
+        sum(ab)                   as ab,
+        sum(hits)                 as hits,
+        sum(doubles)              as doubles,
+        sum(triples)              as triples,
+        sum(home_runs)            as home_runs,
+        sum(strike_outs)          as strike_outs,
+        sum(base_on_balls)        as base_on_balls,
+        sum(intentional_walks)    as intentional_walks,
+        sum(hit_by_pitch)         as hit_by_pitch,
+        sum(sac_flies)            as sac_flies,
+        sum(sac_bunts)            as sac_bunts,
+        sum(runs)                 as runs,
+        sum(rbi)                  as rbi,
+        sum(stolen_bases)         as stolen_bases,
+        sum(caught_stealing)      as caught_stealing,
+        sum(total_bases)          as total_bases,
+        sum(fly_outs)             as fly_outs
+    from per_player_game
+    group by season, player_id
+),
+-- Per-season PA cutoff: mean - 0.5 * stddev. stddev defaults to sample (n-1)
+-- in both Postgres and Snowflake, which is what we want for inference.
+pa_thresholds as (
+    select
+        season,
+        avg(pa)                            as mean_pa,
+        stddev(pa)                         as stddev_pa,
+        avg(pa) - 0.5 * stddev(pa)         as min_pa_for_inclusion
+    from per_player_season
+    group by season
+),
+qualified_player_season as (
+    select pps.*
+    from per_player_season pps
+    join pa_thresholds t on t.season = pps.season
+    where pps.pa >= t.min_pa_for_inclusion
+),
 by_season as (
     select
         season,
@@ -80,7 +133,7 @@ by_season as (
         sum(caught_stealing)      as bat_caught_stealing,
         sum(total_bases)          as bat_total_bases,
         sum(fly_outs)             as bat_fly_outs
-    from per_player_game
+    from qualified_player_season
     group by season
 ),
 -- Closest-season constant lookup, same pattern as int_player_stats_enriched.
