@@ -9,6 +9,17 @@ from src.mlb_types import PlayerStatsWithContext, ScheduleGame
 # MLB boxscore API: https://statsapi.mlb.com/api/{ver}/game/{gamePk}/boxscore
 MLB_BOXSCORE_BASE = "https://statsapi.mlb.com/api/v1/game"
 
+# statsapi.mlb.com sits behind a CDN that returns 406 Not Acceptable for the
+# default python-requests User-Agent. Send browser-like headers so the request
+# is treated like a normal client (works from curl/browser for the same reason).
+MLB_API_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "application/json",
+}
+
 
 def _get_game_pk(game: Any) -> int:
     """Extract game_pk from TransformedGameData, dict, or schedule game."""
@@ -22,7 +33,7 @@ def _get_game_pk(game: Any) -> int:
 def fetch_boxscore(game_pk: int, timeout: int = 30) -> dict:
     """HTTP GET boxscore for game_pk. Returns raw JSON. Raises on HTTP error."""
     url = f"{MLB_BOXSCORE_BASE}/{game_pk}/boxscore"
-    resp = requests.get(url, timeout=timeout)
+    resp = requests.get(url, headers=MLB_API_HEADERS, timeout=timeout)
     resp.raise_for_status()
     return resp.json()
 
