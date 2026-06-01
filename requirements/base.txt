@@ -79,7 +79,6 @@ MarkupSafe==3.0.3
 mashumaro==3.14
 mdurl==0.1.2
 methodtools==0.4.7
-MLB-StatsAPI==1.9.0
 more-itertools==10.8.0
 msgpack==1.1.2
 msgspec==0.20.0

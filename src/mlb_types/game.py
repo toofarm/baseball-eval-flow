@@ -1,7 +1,8 @@
 """
 Type definitions for MLB game and schedule API responses.
 
-Based on game_meta.json (game feed) and statsapi.schedule() responses.
+Based on game_meta.json (game feed) and the MLB Stats API /schedule endpoint
+(parsed by src/extract/schedule.py).
 """
 
 from typing import Any, NotRequired, TypedDict
@@ -10,11 +11,11 @@ from pydantic import BaseModel, ConfigDict
 
 
 # --- TypedDict (hints only, no validation) ---
-# Used for statsapi.schedule() response - we trust the API and don't need validation
+# Used for /schedule response - we trust the API and don't need validation
 
 
 class ScheduleGame(TypedDict):
-    """A single game from statsapi.schedule(date=...). Hints only."""
+    """A single game from the /schedule endpoint (see parse_schedule_games). Hints only."""
 
     # Required fields (always present in API response)
     game_id: str
@@ -146,7 +147,7 @@ class GameMetadata(BaseModel):
     content: ContentRef | None = None
 
 
-# Transformed game - Extracted data from statsapi.schedule()
+# Transformed game - Extracted data from the /schedule endpoint
 class TransformedGameData(BaseModel):
 
     game_pk: int

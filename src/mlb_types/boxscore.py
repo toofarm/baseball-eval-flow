@@ -1,7 +1,7 @@
 """
 Type definitions for MLB boxscore API responses.
 
-Based on boxscore.json from statsapi.game_boxscore(game_pk).
+Based on the MLB Stats API /game/{game_pk}/boxscore endpoint (see src/extract/boxscore.py).
 """
 
 from typing import Any, TypedDict
@@ -231,7 +231,7 @@ class TeamBoxscoreSide(BaseModel):
 
 class BoxscoreResponse(BaseModel):
     """
-    Full boxscore response from statsapi.game_boxscore(game_pk).
+    Full boxscore response from the /game/{game_pk}/boxscore endpoint.
     """
 
     model_config = ConfigDict(extra="ignore")
@@ -240,7 +240,7 @@ class BoxscoreResponse(BaseModel):
     teams: dict[str, TeamBoxscoreSide]  # {"away": {...}, "home": {...}}
 
 
-# Transformed player data - Extracted data from statsapi.game_boxscore()
+# Transformed player data - Extracted data from the /boxscore endpoint
 class TransformedPitchingStats(PitchingStats):
 
     fip: float
