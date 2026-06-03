@@ -8,9 +8,7 @@ rows without going through dbt.
 
 from typing import List, Optional
 
-import requests
-
-from src.extract.boxscore import MLB_API_HEADERS
+from src.extract.http import get_json
 from src.mlb_types import PitchRow, Play, PlayByPlayResponse
 
 # MLB play-by-play API: https://statsapi.mlb.com/api/v1/game/{gamePk}/playByPlay
@@ -20,9 +18,7 @@ MLB_PLAY_BY_PLAY_BASE = "https://statsapi.mlb.com/api/v1/game"
 def fetch_play_by_play(game_pk: int, timeout: int = 30) -> PlayByPlayResponse:
     """HTTP GET playByPlay for game_pk. Returns raw JSON. Raises on HTTP error."""
     url = f"{MLB_PLAY_BY_PLAY_BASE}/{game_pk}/playByPlay"
-    resp = requests.get(url, headers=MLB_API_HEADERS, timeout=timeout)
-    resp.raise_for_status()
-    return resp.json()
+    return get_json(url, timeout=timeout)
 
 
 def _get(d: Optional[dict], *path: str):

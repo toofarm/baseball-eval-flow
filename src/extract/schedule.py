@@ -8,9 +8,7 @@ browser-like headers the CDN requires (see boxscore.py).
 
 from typing import Any, List
 
-import requests
-
-from src.extract.boxscore import MLB_API_HEADERS
+from src.extract.http import get_json
 from src.mlb_types import ScheduleGame
 
 # MLB schedule API: https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=MM/DD/YYYY
@@ -22,14 +20,11 @@ _FINAL_STATUSES = {"Final", "Game Over", "Completed Early"}
 
 def fetch_schedule(date_str: str, timeout: int = 30) -> dict:
     """HTTP GET the schedule for a date (MM/DD/YYYY). Returns raw JSON. Raises on HTTP error."""
-    resp = requests.get(
+    return get_json(
         MLB_SCHEDULE_BASE,
         params={"sportId": 1, "date": date_str},
-        headers=MLB_API_HEADERS,
         timeout=timeout,
     )
-    resp.raise_for_status()
-    return resp.json()
 
 
 def parse_schedule_games(raw: dict) -> List[ScheduleGame]:
