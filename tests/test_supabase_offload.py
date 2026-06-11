@@ -15,6 +15,7 @@ import pytest
 from src.load.supabase import (
     ANALYTICS_SCHEMA,
     PITCHER_ARSENAL,
+    PLAYER_BATTING_PERCENTILES,
     PLAYER_PREDICTIONS,
     STATS_PIPELINE_TABLES,
     TableSpec,
@@ -65,12 +66,32 @@ def test_column_names_returns_ordered_names():
     assert names[-1] == "pct_home_run"
 
 
+def test_batting_percentiles_spec_is_full_refresh_with_aligned_columns():
+    spec = PLAYER_BATTING_PERCENTILES
+    assert spec.strategy == "full_refresh"
+    assert spec.conflict_columns == []
+    # The SELECT column list and the DDL column list must line up 1:1 so the
+    # positional INSERT loads the right values into the right columns.
+    selected = [
+        tok.strip()
+        for tok in spec.source_query.split("SELECT", 1)[1]
+        .split("FROM", 1)[0]
+        .replace("\n", " ")
+        .split(",")
+        if tok.strip()
+    ]
+    assert len(selected) == len(spec.columns)
+    assert spec.column_names()[0] == "player_id"
+    assert spec.column_names()[-1] == "bat_k_pct_pctl"
+
+
 def test_stats_pipeline_tables_contain_expected_set():
     assert {t.name for t in STATS_PIPELINE_TABLES} == {
         "pitcher_arsenal",
         "league_pitch_summary",
         "league_batting_summary",
         "player_rolling_stats",
+        "player_batting_percentiles",
     }
 
 
@@ -212,6 +233,7 @@ def test_offload_all_bootstraps_schema_then_runs_each_spec():
         "league_pitch_summary",
         "league_batting_summary",
         "player_rolling_stats",
+        "player_batting_percentiles",
     }
     sb_cur = _last_cursor(sb)
     statements = [c.args[0] for c in sb_cur.execute.call_args_list]
