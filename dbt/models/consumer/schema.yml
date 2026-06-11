@@ -77,6 +77,33 @@ models:
           - accepted_values:
               values: [7, 30]
 
+  - name: app_player_batting_percentiles
+    description: >
+      Per-batter percentile ranks vs. the league. Grain: (player_id, season).
+      For each qualified batter (the same regular-season pool as
+      app_league_batting_summary), shows the raw stat plus the percentile (0-100)
+      at which it ranks among all qualified batters that season for batting
+      average, OBP, SLG, OPS, and strikeout rate. Higher percentile is always
+      better — K% is ranked so the lowest strikeout rate earns the highest
+      percentile. Adds player_name so the app can render without a join.
+    columns:
+      - name: player_id
+        tests: [not_null]
+      - name: season
+        tests: [not_null]
+      - name: bat_avg_pctl
+        description: Percentile (0-100) of this batter's AVG among qualified batters that season.
+      - name: bat_obp_pctl
+        description: Percentile (0-100) of this batter's OBP.
+      - name: bat_slg_pctl
+        description: Percentile (0-100) of this batter's SLG.
+      - name: bat_ops_pctl
+        description: Percentile (0-100) of this batter's OPS.
+      - name: bat_k_pct_pctl
+        description: >
+          Percentile (0-100) of this batter's strikeout rate, inverted so the
+          lowest K% ranks highest (higher percentile = fewer strikeouts).
+
   - name: app_player_predictions
     description: >
       Consumer-facing denormalization of the predictions table with player_name.

@@ -1,0 +1,45 @@
+{
+    "path_count": 185,
+    "parsed_path_count": 2,
+    "static_analysis_path_count": 1,
+    "static_analysis_parsed_path_count": 1,
+    "is_partial_parse_enabled": true,
+    "is_static_analysis_enabled": true,
+    "read_files_elapsed": 0.026412707986310124,
+    "load_macros_elapsed": 0.0003224170068278909,
+    "parse_project_elapsed": 0.16011758404783905,
+    "patch_sources_elapsed": 2.3333006538450718e-05,
+    "process_manifest_elapsed": 0.0006315830396488309,
+    "load_all_elapsed": 0.305021500098519,
+    "projects": [
+        {
+            "project_name": "baseball_eval",
+            "elapsed": 0.1599924589972943,
+            "parsers": [
+                {
+                    "parser": "model",
+                    "elapsed": 0.09325762500520796,
+                    "parsed_path_count": 1
+                },
+                {
+                    "parser": "test",
+                    "elapsed": 0.06672770797740668,
+                    "parsed_path_count": 1
+                }
+            ],
+            "parsed_path_count": 2
+        },
+        {
+            "project_name": "dbt_snowflake",
+            "elapsed": 0,
+            "parsers": [],
+            "parsed_path_count": 0
+        },
+        {
+            "project_name": "dbt",
+            "elapsed": 0,
+            "parsers": [],
+            "parsed_path_count": 0
+        }
+    ]
+}

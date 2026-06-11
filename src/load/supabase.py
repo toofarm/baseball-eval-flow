@@ -264,6 +264,38 @@ PLAYER_ROLLING_STATS = TableSpec(
 )
 
 
+PLAYER_BATTING_PERCENTILES = TableSpec(
+    name="player_batting_percentiles",
+    source_query="""
+        SELECT
+            player_id, player_name, season, bat_plate_appearances,
+            bat_avg, bat_avg_pctl,
+            bat_obp, bat_obp_pctl,
+            bat_slg, bat_slg_pctl,
+            bat_ops, bat_ops_pctl,
+            bat_k_pct, bat_k_pct_pctl
+        FROM app_player_batting_percentiles
+    """,
+    columns=[
+        ("player_id",             "INTEGER NOT NULL"),
+        ("player_name",           "TEXT"),
+        ("season",                "INTEGER NOT NULL"),
+        ("bat_plate_appearances", "INTEGER"),
+        ("bat_avg",               "NUMERIC(5, 4)"),
+        ("bat_avg_pctl",          "NUMERIC(5, 1)"),
+        ("bat_obp",               "NUMERIC(5, 4)"),
+        ("bat_obp_pctl",          "NUMERIC(5, 1)"),
+        ("bat_slg",               "NUMERIC(5, 4)"),
+        ("bat_slg_pctl",          "NUMERIC(5, 1)"),
+        ("bat_ops",               "NUMERIC(5, 4)"),
+        ("bat_ops_pctl",          "NUMERIC(5, 1)"),
+        ("bat_k_pct",             "NUMERIC(5, 2)"),
+        ("bat_k_pct_pctl",        "NUMERIC(5, 1)"),
+    ],
+    strategy="full_refresh",
+)
+
+
 PLAYER_PREDICTIONS = TableSpec(
     name="player_predictions",
     source_query="""
@@ -296,6 +328,7 @@ STATS_PIPELINE_TABLES: list[TableSpec] = [
     LEAGUE_PITCH_SUMMARY,
     LEAGUE_BATTING_SUMMARY,
     PLAYER_ROLLING_STATS,
+    PLAYER_BATTING_PERCENTILES,
 ]
 
 # Tables offloaded by ml_predictions_pipeline (after dbt builds app_player_predictions).

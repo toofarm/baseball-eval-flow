@@ -13,3 +13,20 @@ models:
         description: Weighted runs created plus
       - name: pit_fip
         description: Fielding independent pitching
+
+  - name: int_batter_season_stats
+    description: >
+      Per-batter season totals for the qualified batter pool. Grain:
+      (season, player_id). Regular-season games only; batters below the
+      mean(PA) - 0.5*stddev(PA) per-season cutoff are excluded. Shared source of
+      the qualified pool for app_league_batting_summary (which sums the counts
+      into a PA-weighted baseline) and app_player_batting_percentiles (which
+      ranks batters against the pool). Emits both season counting totals and
+      this batter's own slash line (bat_avg/obp/slg/ops) plus K rate.
+    columns:
+      - name: season
+        tests: [not_null]
+      - name: player_id
+        tests: [not_null]
+      - name: bat_plate_appearances
+        tests: [not_null]
