@@ -273,7 +273,10 @@ PLAYER_BATTING_PERCENTILES = TableSpec(
             bat_obp, bat_obp_pctl,
             bat_slg, bat_slg_pctl,
             bat_ops, bat_ops_pctl,
-            bat_k_pct, bat_k_pct_pctl
+            bat_k_pct, bat_k_pct_pctl,
+            bat_bb_pct, bat_bb_pct_pctl,
+            bat_babip, bat_babip_pctl,
+            bat_wrc_plus, bat_wrc_plus_pctl
         FROM app_player_batting_percentiles
     """,
     columns=[
@@ -291,8 +294,15 @@ PLAYER_BATTING_PERCENTILES = TableSpec(
         ("bat_ops_pctl",          "NUMERIC(5, 1)"),
         ("bat_k_pct",             "NUMERIC(5, 2)"),
         ("bat_k_pct_pctl",        "NUMERIC(5, 1)"),
+        ("bat_bb_pct",            "NUMERIC(5, 2)"),
+        ("bat_bb_pct_pctl",       "NUMERIC(5, 1)"),
+        ("bat_babip",             "NUMERIC(5, 4)"),
+        ("bat_babip_pctl",        "NUMERIC(5, 1)"),
+        ("bat_wrc_plus",          "NUMERIC(6, 2)"),
+        ("bat_wrc_plus_pctl",     "NUMERIC(5, 1)"),
     ],
-    strategy="full_refresh",
+    strategy="upsert",
+    conflict_columns=["player_id", "season"],
 )
 
 

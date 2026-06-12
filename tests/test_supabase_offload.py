@@ -66,10 +66,12 @@ def test_column_names_returns_ordered_names():
     assert names[-1] == "pct_home_run"
 
 
-def test_batting_percentiles_spec_is_full_refresh_with_aligned_columns():
+def test_batting_percentiles_spec_is_upsert_with_aligned_columns():
     spec = PLAYER_BATTING_PERCENTILES
-    assert spec.strategy == "full_refresh"
-    assert spec.conflict_columns == []
+    # Upsert keyed on the (player_id, season) grain so reloading a season
+    # updates a player's row in place instead of inserting a duplicate.
+    assert spec.strategy == "upsert"
+    assert spec.conflict_columns == ["player_id", "season"]
     # The SELECT column list and the DDL column list must line up 1:1 so the
     # positional INSERT loads the right values into the right columns.
     selected = [
@@ -82,7 +84,7 @@ def test_batting_percentiles_spec_is_full_refresh_with_aligned_columns():
     ]
     assert len(selected) == len(spec.columns)
     assert spec.column_names()[0] == "player_id"
-    assert spec.column_names()[-1] == "bat_k_pct_pctl"
+    assert spec.column_names()[-1] == "bat_wrc_plus_pctl"
 
 
 def test_stats_pipeline_tables_contain_expected_set():

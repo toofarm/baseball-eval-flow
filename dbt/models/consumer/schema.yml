@@ -83,9 +83,10 @@ models:
       For each qualified batter (the same regular-season pool as
       app_league_batting_summary), shows the raw stat plus the percentile (0-100)
       at which it ranks among all qualified batters that season for batting
-      average, OBP, SLG, OPS, and strikeout rate. Higher percentile is always
-      better — K% is ranked so the lowest strikeout rate earns the highest
-      percentile. Adds player_name so the app can render without a join.
+      average, OBP, SLG, OPS, strikeout rate, walk rate, BABIP, and wRC+. Higher
+      percentile is always better — K% is ranked so the lowest strikeout rate
+      earns the highest percentile. Adds player_name so the app can render
+      without a join.
     columns:
       - name: player_id
         tests: [not_null]
@@ -103,6 +104,12 @@ models:
         description: >
           Percentile (0-100) of this batter's strikeout rate, inverted so the
           lowest K% ranks highest (higher percentile = fewer strikeouts).
+      - name: bat_bb_pct_pctl
+        description: Percentile (0-100) of this batter's walk rate (higher BB% ranks higher).
+      - name: bat_babip_pctl
+        description: Percentile (0-100) of this batter's BABIP.
+      - name: bat_wrc_plus_pctl
+        description: Percentile (0-100) of this batter's wRC+.
 
   - name: app_player_predictions
     description: >

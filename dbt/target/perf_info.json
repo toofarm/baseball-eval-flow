@@ -1,33 +1,38 @@
 {
     "path_count": 185,
-    "parsed_path_count": 2,
+    "parsed_path_count": 3,
     "static_analysis_path_count": 1,
     "static_analysis_parsed_path_count": 1,
     "is_partial_parse_enabled": true,
     "is_static_analysis_enabled": true,
-    "read_files_elapsed": 0.026412707986310124,
-    "load_macros_elapsed": 0.0003224170068278909,
-    "parse_project_elapsed": 0.16011758404783905,
-    "patch_sources_elapsed": 2.3333006538450718e-05,
-    "process_manifest_elapsed": 0.0006315830396488309,
-    "load_all_elapsed": 0.305021500098519,
+    "read_files_elapsed": 0.040303291054442525,
+    "load_macros_elapsed": 0.0003649169811978936,
+    "parse_project_elapsed": 0.20878333307337016,
+    "patch_sources_elapsed": 1.9458006136119366e-05,
+    "process_manifest_elapsed": 0.0008069999748840928,
+    "load_all_elapsed": 0.36778462503571063,
     "projects": [
         {
             "project_name": "baseball_eval",
-            "elapsed": 0.1599924589972943,
+            "elapsed": 0.2086304590338841,
             "parsers": [
                 {
                     "parser": "model",
-                    "elapsed": 0.09325762500520796,
+                    "elapsed": 0.1003256660187617,
                     "parsed_path_count": 1
                 },
                 {
                     "parser": "test",
-                    "elapsed": 0.06672770797740668,
+                    "elapsed": 0.04246887506451458,
+                    "parsed_path_count": 1
+                },
+                {
+                    "parser": "test",
+                    "elapsed": 0.06582195800729096,
                     "parsed_path_count": 1
                 }
             ],
-            "parsed_path_count": 2
+            "parsed_path_count": 3
         },
         {
             "project_name": "dbt_snowflake",
