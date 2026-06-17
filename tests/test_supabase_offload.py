@@ -17,6 +17,7 @@ from src.load.supabase import (
     PITCHER_ARSENAL,
     PLAYER_BATTING_PERCENTILES,
     PLAYER_PREDICTIONS,
+    SEARCH_ENTITIES,
     STATS_PIPELINE_TABLES,
     TableSpec,
     ensure_analytics_schema,
@@ -94,7 +95,46 @@ def test_stats_pipeline_tables_contain_expected_set():
         "league_batting_summary",
         "player_rolling_stats",
         "player_batting_percentiles",
+        "search_entities",
     }
+
+
+# --- post_create_ddl (trigram search) ----------------------------------------
+
+
+def test_search_entities_post_create_statements_render_schema_and_table():
+    stmts = SEARCH_ENTITIES.post_create_statements()
+    # pg_trgm extension is enabled (no placeholders, passed through unchanged).
+    assert "CREATE EXTENSION IF NOT EXISTS pg_trgm" in stmts
+    # Index statements get {schema}/{table} filled in and target gin_trgm_ops.
+    trgm = [s for s in stmts if "gin_trgm_ops" in s]
+    assert len(trgm) == 2
+    for s in trgm:
+        assert f"ON {ANALYTICS_SCHEMA}.search_entities" in s
+        assert "USING GIN" in s
+    # No unrendered placeholders remain.
+    assert all("{" not in s for s in stmts)
+
+
+def test_post_create_statements_empty_for_plain_spec():
+    # Specs without post_create_ddl render nothing (back-compat).
+    assert PITCHER_ARSENAL.post_create_statements() == []
+
+
+def test_offload_table_runs_post_create_ddl_after_create_before_load():
+    sf = _mock_conn(fetchall_rows=[("team", 147, "Yankees") + (None,) * 4 + ("yankees nyy",)])
+    sb = _mock_conn()
+
+    offload_table(sf, sb, SEARCH_ENTITIES)
+
+    sb_cur = _last_cursor(sb)
+    statements = [c.args[0] for c in sb_cur.execute.call_args_list]
+    create_idx = next(i for i, s in enumerate(statements) if s.startswith("CREATE TABLE"))
+    ext_idx = statements.index("CREATE EXTENSION IF NOT EXISTS pg_trgm")
+    trunc_idx = next(i for i, s in enumerate(statements) if s.startswith("TRUNCATE TABLE"))
+    # Order: CREATE TABLE -> extension + indexes -> TRUNCATE -> (INSERT via executemany).
+    assert create_idx < ext_idx < trunc_idx
+    assert any("gin_trgm_ops" in s for s in statements)
 
 
 # --- ensure_analytics_schema -------------------------------------------------
@@ -236,6 +276,7 @@ def test_offload_all_bootstraps_schema_then_runs_each_spec():
         "league_batting_summary",
         "player_rolling_stats",
         "player_batting_percentiles",
+        "search_entities",
     }
     sb_cur = _last_cursor(sb)
     statements = [c.args[0] for c in sb_cur.execute.call_args_list]

@@ -57,6 +57,11 @@ class TableSpec:
             (INSERT ... ON CONFLICT DO UPDATE).
         conflict_columns: Primary-key-like columns for upsert conflict
             resolution. Ignored for full_refresh.
+        post_create_ddl: Extra Postgres statements run once (idempotently)
+            right after CREATE TABLE, before any load — e.g. CREATE EXTENSION
+            and CREATE INDEX. Each string may use the ``{schema}`` and
+            ``{table}`` placeholders, filled in at offload time. These are
+            Postgres-only and never touch Snowflake.
     """
 
     name: str
@@ -64,6 +69,7 @@ class TableSpec:
     columns: list[tuple[str, str]]
     strategy: Literal["full_refresh", "upsert"]
     conflict_columns: list[str] = field(default_factory=list)
+    post_create_ddl: list[str] = field(default_factory=list)
 
     def create_ddl(self, schema: str = ANALYTICS_SCHEMA) -> str:
         cols_sql = ",\n    ".join(
@@ -81,6 +87,13 @@ class TableSpec:
 
     def column_names(self) -> list[str]:
         return [name for name, _ in self.columns]
+
+    def post_create_statements(self, schema: str = ANALYTICS_SCHEMA) -> list[str]:
+        """Render post_create_ddl with the destination schema/table filled in."""
+        return [
+            stmt.format(schema=schema, table=self.name)
+            for stmt in self.post_create_ddl
+        ]
 
 
 # ---------------------------------------------------------------------------
@@ -306,6 +319,45 @@ PLAYER_BATTING_PERCENTILES = TableSpec(
 )
 
 
+SEARCH_ENTITIES = TableSpec(
+    name="search_entities",
+    source_query="""
+        SELECT
+            entity_type, uid, display_name, position_name,
+            team_id, team_name, team_abbreviation, search_text
+        FROM app_search_entities
+    """,
+    columns=[
+        ("entity_type",       "VARCHAR(8) NOT NULL"),
+        ("uid",               "INTEGER NOT NULL"),
+        ("display_name",      "TEXT NOT NULL"),
+        ("position_name",     "TEXT"),
+        ("team_id",           "INTEGER"),
+        ("team_name",         "TEXT"),
+        ("team_abbreviation", "VARCHAR(16)"),
+        ("search_text",       "TEXT NOT NULL"),
+    ],
+    # Rebuilt wholesale each run so players/teams that drop out of the active
+    # set disappear from search. TRUNCATE keeps the indexes below intact.
+    strategy="full_refresh",
+    post_create_ddl=[
+        # Trigram similarity search support (Postgres-only; enabled once).
+        "CREATE EXTENSION IF NOT EXISTS pg_trgm",
+        # Identity for the polymorphic grain (full_refresh, so not an upsert key).
+        "CREATE UNIQUE INDEX IF NOT EXISTS {table}_pk "
+        "ON {schema}.{table} (entity_type, uid)",
+        # GIN trigram indexes power fast ILIKE / similarity() / % search.
+        "CREATE INDEX IF NOT EXISTS {table}_display_name_trgm "
+        "ON {schema}.{table} USING GIN (display_name gin_trgm_ops)",
+        "CREATE INDEX IF NOT EXISTS {table}_search_text_trgm "
+        "ON {schema}.{table} USING GIN (search_text gin_trgm_ops)",
+        # Cheap btree for entity_type filtering (players-only / teams-only).
+        "CREATE INDEX IF NOT EXISTS {table}_entity_type "
+        "ON {schema}.{table} (entity_type)",
+    ],
+)
+
+
 PLAYER_PREDICTIONS = TableSpec(
     name="player_predictions",
     source_query="""
@@ -339,6 +391,7 @@ STATS_PIPELINE_TABLES: list[TableSpec] = [
     LEAGUE_BATTING_SUMMARY,
     PLAYER_ROLLING_STATS,
     PLAYER_BATTING_PERCENTILES,
+    SEARCH_ENTITIES,
 ]
 
 # Tables offloaded by ml_predictions_pipeline (after dbt builds app_player_predictions).
@@ -370,9 +423,11 @@ def offload_table(
     and inserts (full_refresh) or upserts on the spec's conflict columns.
     Caller is responsible for commit/close on both connections.
     """
-    # 1. Ensure destination table exists.
+    # 1. Ensure destination table exists, plus any extensions/indexes it needs.
     with sb_conn.cursor() as cur:
         cur.execute(spec.create_ddl(schema))
+        for stmt in spec.post_create_statements(schema):
+            cur.execute(stmt)
 
     # 2. Pull rows from Snowflake.
     with sf_conn.cursor() as cur:

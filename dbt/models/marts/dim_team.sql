@@ -20,11 +20,18 @@ unioned as (
     select * from teams_from_home
     union
     select * from teams_from_away
+),
+teams as (
+    select
+        team_id,
+        max(name) as name
+    from unioned
+    group by team_id
 )
 select
-    team_id,
-    max(name) as name,
-    null::varchar(16) as abbreviation
-from unioned
-group by team_id
-order by team_id
+    t.team_id,
+    t.name,
+    a.abbreviation
+from teams t
+left join {{ ref('team_abbreviation') }} a on a.team_id = t.team_id
+order by t.team_id

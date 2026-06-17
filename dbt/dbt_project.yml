@@ -39,6 +39,11 @@ seeds:
         pitch_type_code: varchar(4)
         pitch_type_name: varchar(64)
         pitch_family: varchar(16)
+    team_abbreviation:
+      +column_types:
+        team_id: integer
+        team_name: varchar(64)
+        abbreviation: varchar(16)
 
 models:
   baseball_eval:

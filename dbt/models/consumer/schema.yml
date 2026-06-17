@@ -124,3 +124,36 @@ models:
         tests: [not_null]
       - name: as_of_date
         tests: [not_null]
+
+  - name: app_search_entities
+    description: >
+      Unified consumer-facing search index of all current-season-active players
+      and teams, one polymorphic row per entity. Powers the web app's
+      player/team search box via a pg_trgm trigram index (built on display_name
+      and search_text in the Supabase offload). "Active" = appeared in a game in
+      the latest season in dim_game. Grain: (entity_type, uid). team_abbreviation
+      comes from the team_abbreviation seed via dim_team.
+    columns:
+      - name: entity_type
+        description: "'player' | 'team' discriminator."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['player', 'team']
+      - name: uid
+        description: MLB player_id (players) or team_id (teams). Unique within an entity_type.
+        tests: [not_null]
+      - name: display_name
+        description: Player full name or team name — the primary search/display field.
+        tests: [not_null]
+      - name: position_name
+        description: Player's most-recent-game position this season; null for teams.
+      - name: team_id
+        description: Player's current team_id; for a team row, its own team_id.
+      - name: team_name
+        description: Player's current team name; for a team row, its own name.
+      - name: team_abbreviation
+        description: Team abbreviation (e.g. 'NYY') from the team_abbreviation seed; secondary search token.
+      - name: search_text
+        description: Lowercased blob of display_name + team tokens; the pg_trgm GIN index target.
+        tests: [not_null]
