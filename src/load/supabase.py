@@ -55,8 +55,12 @@ class TableSpec:
             generate CREATE TABLE and the INSERT column list, in order.
         strategy: ``full_refresh`` (TRUNCATE + INSERT) or ``upsert``
             (INSERT ... ON CONFLICT DO UPDATE).
-        conflict_columns: Primary-key-like columns for upsert conflict
-            resolution. Ignored for full_refresh.
+        conflict_columns: Primary-key-like columns. For ``upsert`` these are
+            the ``ON CONFLICT ... DO UPDATE`` target. For ``full_refresh`` they
+            make the INSERT ``ON CONFLICT ... DO NOTHING`` so a duplicate key is
+            skipped rather than aborting the load (rows stay unique on these
+            columns). Either way they are emitted as the table's PRIMARY KEY by
+            ``create_ddl``.
         post_create_ddl: Extra Postgres statements run once (idempotently)
             right after CREATE TABLE, before any load — e.g. CREATE EXTENSION
             and CREATE INDEX. Each string may use the ``{schema}`` and
@@ -340,12 +344,14 @@ SEARCH_ENTITIES = TableSpec(
     # Rebuilt wholesale each run so players/teams that drop out of the active
     # set disappear from search. TRUNCATE keeps the indexes below intact.
     strategy="full_refresh",
+    # The polymorphic grain. create_ddl emits this as the PRIMARY KEY, and the
+    # full_refresh INSERT uses ON CONFLICT DO NOTHING so a stray duplicate
+    # (e.g. a two-way player slipping past the model dedup) is skipped instead
+    # of failing the load.
+    conflict_columns=["entity_type", "uid"],
     post_create_ddl=[
         # Trigram similarity search support (Postgres-only; enabled once).
         "CREATE EXTENSION IF NOT EXISTS pg_trgm",
-        # Identity for the polymorphic grain (full_refresh, so not an upsert key).
-        "CREATE UNIQUE INDEX IF NOT EXISTS {table}_pk "
-        "ON {schema}.{table} (entity_type, uid)",
         # GIN trigram indexes power fast ILIKE / similarity() / % search.
         "CREATE INDEX IF NOT EXISTS {table}_display_name_trgm "
         "ON {schema}.{table} USING GIN (display_name gin_trgm_ops)",
@@ -447,6 +453,13 @@ def offload_table(
                     f"INSERT INTO {qualified} ({', '.join(cols)}) "
                     f"VALUES ({placeholders})"
                 )
+                # When the spec declares conflict_columns, skip duplicate keys
+                # instead of aborting the load (rows stay unique on those cols).
+                if spec.conflict_columns:
+                    insert_sql += (
+                        f" ON CONFLICT ({', '.join(spec.conflict_columns)}) "
+                        "DO NOTHING"
+                    )
                 cur.executemany(insert_sql, rows)
         elif spec.strategy == "upsert":
             if not rows:

@@ -59,6 +59,18 @@ active_players as (
     where rn = 1
 ),
 
+-- dim_player is distinct on (player_id, full_name, position_type), so a two-way
+-- player (logged as both pitcher and hitter) or a name variant yields multiple
+-- rows per player_id. Collapse to one display name per player so the join below
+-- can't fan out the (entity_type, uid) grain.
+player_names as (
+    select
+        player_id,
+        max(full_name) as full_name
+    from {{ ref('dim_player') }}
+    group by player_id
+),
+
 players as (
     select
         'player'              as entity_type,
@@ -69,7 +81,7 @@ players as (
         dt.name               as team_name,
         dt.abbreviation       as team_abbreviation
     from active_players ap
-    join {{ ref('dim_player') }} dp on dp.player_id = ap.player_id
+    join player_names dp on dp.player_id = ap.player_id
     left join {{ ref('dim_team') }} dt on dt.team_id = ap.team_id
 ),
 

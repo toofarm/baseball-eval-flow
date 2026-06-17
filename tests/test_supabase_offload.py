@@ -172,6 +172,28 @@ def test_offload_table_full_refresh_truncates_and_inserts():
     assert rows == [(1, "Cy", 2026, "FF") + (None,) * 12]
 
 
+def test_offload_table_full_refresh_with_conflict_columns_skips_duplicates():
+    """full_refresh + conflict_columns: INSERT ... ON CONFLICT DO NOTHING so a
+    duplicate key is skipped rather than aborting the load."""
+    row = ("team", 147, "Yankees") + (None,) * 4 + ("yankees nyy",)
+    sf = _mock_conn(fetchall_rows=[row])
+    sb = _mock_conn()
+
+    offload_table(sf, sb, SEARCH_ENTITIES)
+
+    sb_cur = _last_cursor(sb)
+    # Still a full_refresh (truncate first), but the INSERT tolerates dupes.
+    statements = [c.args[0] for c in sb_cur.execute.call_args_list]
+    assert any(s.startswith("TRUNCATE TABLE") for s in statements)
+    insert_sql, _ = sb_cur.executemany.call_args.args
+    assert "ON CONFLICT (entity_type, uid) DO NOTHING" in insert_sql
+
+
+def test_search_entities_create_ddl_has_primary_key():
+    ddl = SEARCH_ENTITIES.create_ddl()
+    assert "PRIMARY KEY (entity_type, uid)" in ddl
+
+
 def test_offload_table_full_refresh_with_empty_source_still_truncates():
     """No source rows: we still create+truncate (so the destination reflects
     the empty source), but we don't run executemany."""
