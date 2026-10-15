@@ -1,6 +1,6 @@
 import pytest
 
-from src.load.staging import load_staging_player_stats
+from src.load.staging import _build_player_stats_merge_sql, load_staging_player_stats
 
 from unittest.mock import MagicMock, patch
 
@@ -95,3 +95,13 @@ def test_load_staging_player_stats_issues_one_execute_per_chunk():
     # Second chunk has the remaining 100 rows × 10 cols.
     _, second_params = cur.execute.call_args_list[1].args
     assert len(second_params) == 100 * 10
+
+
+def test_player_stats_merge_only_updates_changed_rows():
+    """Re-pulling a game must not rewrite rows (or bump load_date) unless something changed."""
+    sql = _build_player_stats_merge_sql(1)
+    matched = sql.split("WHEN MATCHED", 1)[1].split("THEN UPDATE", 1)[0]
+    for col in ("team_id", "full_name", "position_type", "position_code", "position_name"):
+        assert f"tgt.{col} IS DISTINCT FROM src.{col}" in matched
+    for col in ("batting", "pitching", "fielding"):
+        assert f"HASH(tgt.{col}) <> HASH(src.{col})" in matched

@@ -59,10 +59,8 @@ active_players as (
     where rn = 1
 ),
 
--- dim_player is distinct on (player_id, full_name, position_type), so a two-way
--- player (logged as both pitcher and hitter) or a name variant yields multiple
--- rows per player_id. Collapse to one display name per player so the join below
--- can't fan out the (entity_type, uid) grain.
+-- dim_player is one row per player_id; the group by is a guard so the join
+-- below can't fan out the (entity_type, uid) grain if that ever regresses.
 player_names as (
     select
         player_id,

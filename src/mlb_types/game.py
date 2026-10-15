@@ -43,6 +43,10 @@ class ScheduleGame(TypedDict):
     venue_name: NotRequired[str]
     rescheduled_from: NotRequired[str]
     rescheduled_from_date: NotRequired[str]
+    # status.codedGameState (F final, D postponed, C cancelled, T/U suspended, ...)
+    coded_game_state: NotRequired[str]
+    # "Y" for postseason games that are only played if the series requires it
+    if_necessary: NotRequired[str]
 
 
 # --- Pydantic models (validation + extra="ignore") ---

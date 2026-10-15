@@ -11,18 +11,26 @@ from src.extract.play_by_play import (
 )
 from src.extract.schedule import (
     MLB_SCHEDULE_BASE,
-    check_mlb_data_ready,
+    dedupe_games,
     fetch_schedule,
+    fetch_schedule_range,
     get_schedule_for_date,
+    is_ingestible,
+    is_pending,
     parse_schedule_games,
+    plan_ingest,
 )
 from src.extract.streaming_boxscore import fetch_and_load_player_stats_batched
 from src.extract.streaming_play_by_play import fetch_and_load_play_by_play_batched
 
 __all__ = [
     "get_schedule_for_date",
-    "check_mlb_data_ready",
+    "plan_ingest",
+    "is_ingestible",
+    "is_pending",
+    "dedupe_games",
     "fetch_schedule",
+    "fetch_schedule_range",
     "parse_schedule_games",
     "MLB_SCHEDULE_BASE",
     "MLB_BOXSCORE_BASE",
