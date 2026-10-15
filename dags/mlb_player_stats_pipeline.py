@@ -1,10 +1,13 @@
+import logging
 import os
 import subprocess
+from datetime import date, timedelta
 from pathlib import Path
 
 import pendulum
 from airflow.sdk import PokeReturnValue, dag, task
 from airflow.providers.smtp.notifications.smtp import send_smtp_notification
+from airflow.timetables.interval import CronDataIntervalTimetable
 from pendulum import DateTime
 from typing import List, Optional, cast
 
@@ -12,15 +15,12 @@ from src.mlb_types import (
     ScheduleGame,
 )
 
-from src.extract import (
-    check_mlb_data_ready,
-    get_schedule_for_date,
-)
+from src.extract import plan_ingest
 from src.load.audit import record_load_audit
 from src.load.connection import get_offload_hook
 from src.load.staging import load_staging_schedule
 from src.transform.validation import (
-    validate_game_count_from_db,
+    validate_games_in_db,
     validate_schedule_games,
 )
 
@@ -43,10 +43,40 @@ FAILURE_ALERT_EMAILS = ["alerts@example.com"]
 DBT_PROJECT_DIR = Path(os.environ.get(
     "AIRFLOW_PROJ_DIR", "/opt/airflow/app")) / "dbt"
 
+# The run for a given day's games starts at 1am Eastern the next morning.
+# Game dates are taken in this timezone too.
+PIPELINE_TZ = "America/New_York"
+
+# Each run re-pulls this many days of games (the target day plus the days
+# before it), so scoring changes and late-finishing games get picked up.
+LOOKBACK_DAYS = int(os.environ.get("MLB_LOOKBACK_DAYS", "3"))
+
+# How long past the scheduled start the sensor waits for the target day's
+# games to finish before ingesting without the stragglers (they get picked up
+# by the next run's lookback).
+MAX_WAIT_HOURS = float(os.environ.get("MLB_MAX_WAIT_HOURS", "4"))
+
+log = logging.getLogger(__name__)
+
+
+def _target_date(data_interval_start: Optional[DateTime]) -> date:
+    """The game date a run covers: the start of its data interval, in Eastern time.
+
+    With CronDataIntervalTimetable the run that starts at 1am on day N+1 has
+    data_interval_start = 1am on day N, so this is "yesterday" relative to
+    when the run executes, for scheduled runs and backfills alike.
+    """
+    if data_interval_start is None:
+        raise ValueError("data_interval_start is required")
+    return data_interval_start.in_timezone(PIPELINE_TZ).date()
+
 
 @dag(
-    schedule="0 2 * * *",
-    start_date=pendulum.datetime(2024, 1, 1, tz="UTC"),
+    # Data-interval timetable (not the Airflow 3 default CronTriggerTimetable,
+    # where data_interval_start is the run time itself). Set here rather than
+    # via create_cron_data_intervals so ml_predictions_pipeline is unaffected.
+    schedule=CronDataIntervalTimetable("0 1 * * *", timezone=PIPELINE_TZ),
+    start_date=pendulum.datetime(2024, 1, 1, tz=PIPELINE_TZ),
     catchup=False,
     max_active_runs=1,
     tags=["mlb_analytics"],
@@ -69,25 +99,59 @@ DBT_PROJECT_DIR = Path(os.environ.get(
 )
 def mlb_player_stats_pipeline():
 
-    @task.sensor(poke_interval=300, timeout=3600 * 6, mode="reschedule")
-    def check_mlb_data_readiness(
+    # Hard timeout is a backstop for a schedule API that stays down; the soft
+    # MAX_WAIT_HOURS deadline below is what normally ends the wait.
+    @task.sensor(
+        poke_interval=600,
+        timeout=int(3600 * (MAX_WAIT_HOURS + 2)),
+        mode="reschedule",
+    )
+    def wait_for_final_games(
         data_interval_start: Optional[DateTime] = None,
+        data_interval_end: Optional[DateTime] = None,
     ) -> PokeReturnValue:
-        is_done, xcom_value = check_mlb_data_ready(data_interval_start)
-        return PokeReturnValue(is_done=is_done, xcom_value=xcom_value)
+        """Wait for the target day's games to finish; return the games to ingest.
 
-    @task()
-    def extract_yesterdays_games(
-        data_interval_start: Optional[DateTime] = None,
-    ) -> List[ScheduleGame]:
-        if data_interval_start is None:
-            raise ValueError("data_interval_start is required")
-        yesterday = data_interval_start.in_timezone("UTC").strftime("%m/%d/%Y")
-        return cast(List[ScheduleGame], get_schedule_for_date(yesterday))
+        Returns every final game in the lookback window. Postponed, cancelled
+        and suspended games never hold the run up. Games that are still live
+        (in progress, delayed) are waited on until MAX_WAIT_HOURS past the
+        scheduled start, then left for the next run. An off day or the
+        offseason returns an empty list rather than failing.
+        """
+        if data_interval_end is None:
+            raise ValueError("data_interval_end is required")
+        target = _target_date(data_interval_start)
+        try:
+            ready, pending = plan_ingest(target, LOOKBACK_DAYS)
+        except Exception:
+            log.exception("Schedule fetch for %s failed; will poke again", target)
+            return PokeReturnValue(is_done=False)
+
+        if pending:
+            summary = ", ".join(f"{g['game_id']} ({g['status']})" for g in pending)
+            deadline = data_interval_end + timedelta(hours=MAX_WAIT_HOURS)
+            if pendulum.now("UTC") < deadline:
+                log.info(
+                    "Waiting on %d game(s) dated %s until %s: %s",
+                    len(pending), target, deadline, summary,
+                )
+                return PokeReturnValue(is_done=False)
+            log.warning(
+                "Wait deadline %s passed; ingesting without %d unfinished game(s) "
+                "dated %s (the next run's lookback will pick them up): %s",
+                deadline, len(pending), target, summary,
+            )
+
+        log.info(
+            "Ingesting %d final game(s) for %s through %s",
+            len(ready), target - timedelta(days=LOOKBACK_DAYS - 1), target,
+        )
+        return PokeReturnValue(is_done=True, xcom_value=ready)
 
     @task()
     def validate_schedule_data(games: List[ScheduleGame]) -> List[ScheduleGame]:
-        validate_schedule_games(games, min_games=1)
+        # min_games=0: an off day or the offseason legitimately has nothing to load.
+        validate_schedule_games(games, min_games=0)
         return games
 
     @task()
@@ -128,35 +192,33 @@ def mlb_player_stats_pipeline():
     @task()
     def run_dbt_task(
         data_interval_start: Optional[DateTime] = None,
-        **context: object,
     ) -> None:
-        """Run dbt seed and dbt run with as_of_date var."""
-        ds = context.get("data_interval_start") or data_interval_start
-        if ds is None:
-            raise ValueError("data_interval_start is required")
-        as_of_date = (
-            ds.in_timezone(  # pyright: ignore[reportAttributeAccessIssue]
-                "UTC"
-            ).strftime("%Y-%m-%d")
-            if hasattr(ds, "in_timezone")
-            else str(ds)[:10]
-        )
+        """Run dbt seed and dbt run, then refresh rolling stats for the lookback days.
+
+        The full run (as_of_date = target day) rebuilds every table from
+        staging. player_rolling_stats is the one incremental model, keyed on
+        as_of_date, so it is re-run for each earlier day in the lookback window
+        to pick up games that changed since that day was first processed.
+        """
+        target = _target_date(data_interval_start)
         dbt_dir = str(DBT_PROJECT_DIR)
         dbt_target = os.environ.get("DBT_TARGET", "prod")
-        vars_json = f'{{"as_of_date": "{as_of_date}"}}'
-        for cmd in [
-            ["dbt", "seed", "--project-dir", dbt_dir, "--target", dbt_target],
-            [
-                "dbt",
-                "run",
-                "--project-dir",
-                dbt_dir,
-                "--target",
-                dbt_target,
-                "--vars",
-                vars_json,
-            ],
-        ]:
+        base = ["--project-dir", dbt_dir, "--target", dbt_target]
+
+        def vars_for(d: date) -> list[str]:
+            return ["--vars", f'{{"as_of_date": "{d.isoformat()}"}}']
+
+        cmds = [
+            ["dbt", "seed", *base],
+            ["dbt", "run", *base, *vars_for(target)],
+        ]
+        for days_back in range(1, LOOKBACK_DAYS):
+            cmds.append([
+                "dbt", "run", *base,
+                "--select", "player_rolling_stats",
+                *vars_for(target - timedelta(days=days_back)),
+            ])
+        for cmd in cmds:
             result = subprocess.run(
                 cmd,
                 cwd=dbt_dir,
@@ -169,32 +231,15 @@ def mlb_player_stats_pipeline():
                 )
 
     @task()
-    def validate_game_row_count(
+    def validate_games_loaded(
         schedule_games: List[ScheduleGame],
         conn_id: Optional[str] = None,
-        data_interval_start: Optional[DateTime] = None,
-        **context: object,
     ) -> None:
-        """Compare dim_game count to schedule count; raise if mismatch."""
-        ds = context.get("data_interval_start") or data_interval_start
-        if ds is None:
-            raise ValueError("data_interval_start is required")
-        if hasattr(ds, "in_timezone"):
-            yesterday = ds.in_timezone(  # pyright: ignore[reportAttributeAccessIssue]
-                "UTC"
-            ).date()
-        elif hasattr(ds, "date"):
-            yesterday = (
-                ds.date()  # pyright: ignore[reportAttributeAccessIssue]
-                if callable(getattr(ds, "date"))
-                else ds
-            )
-        else:
-            yesterday = ds
+        """Check every ingested game reached dim_game and fact_game_state; raise if not."""
         hook = get_offload_hook(conn_id)
         conn = hook.get_conn()
         try:
-            validate_game_count_from_db(conn, len(schedule_games), yesterday)
+            validate_games_in_db(conn, [int(g["game_id"]) for g in schedule_games])
         finally:
             conn.close()
 
@@ -204,13 +249,11 @@ def mlb_player_stats_pipeline():
         conn_id: Optional[str] = None,
     ) -> None:
         """Record successful mlb_player_stats load for freshness checks."""
-        if data_interval_start is None:
-            raise ValueError("data_interval_start is required")
-        yesterday = data_interval_start.in_timezone("UTC").date()
+        target = _target_date(data_interval_start)
         hook = get_offload_hook(conn_id)
         conn = hook.get_conn()
         try:
-            record_load_audit(conn, "mlb_player_stats", yesterday)
+            record_load_audit(conn, "mlb_player_stats", target)
             conn.commit()
         finally:
             conn.close()
@@ -235,14 +278,11 @@ def mlb_player_stats_pipeline():
             sf_conn.close()
             sb_conn.close()
 
-    # Check data readiness (sensor fails on empty API response so run doesn't reschedule forever)
-    sensor_task = check_mlb_data_readiness()
-
-    # Extract and validate schedule data (only after sensor succeeds)
-    raw_games = extract_yesterdays_games()
-    raw_games.set_upstream(sensor_task)
+    # Wait for the target day's games to finish; returns the final games in
+    # the lookback window (empty on off days, never fails on postponements)
+    ready_games = wait_for_final_games()
     validated_schedule = validate_schedule_data(
-        cast(List[ScheduleGame], raw_games))
+        cast(List[ScheduleGame], ready_games))
 
     # Load raw data to staging tables (boxscore + play-by-play run in parallel)
     load_result = load_staging_task(
@@ -252,13 +292,14 @@ def mlb_player_stats_pipeline():
         cast(List[ScheduleGame], validated_schedule),
     )
 
-    # Run dbt: seed constants, then build dims, fact, rolling stats, fact_pitch
+    # Run dbt: seed constants, build dims, fact, rolling stats, fact_pitch,
+    # then refresh rolling stats for the earlier lookback days
     dbt_task = run_dbt_task()
     dbt_task.set_upstream(load_result)
     dbt_task.set_upstream(pbp_result)
 
-    # Validate game count in dim_game matches schedule
-    validate_task = validate_game_row_count(
+    # Validate every ingested game reached dim_game / fact_game_state
+    validate_task = validate_games_loaded(
         cast(List[ScheduleGame], validated_schedule),
     )
     validate_task.set_upstream(dbt_task)

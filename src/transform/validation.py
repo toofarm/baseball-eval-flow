@@ -19,7 +19,7 @@ def validate_schedule_games(
     games: Union[List[TransformedGameData], Any], min_games: int = 1
 ) -> None:
     """
-    Validate raw schedule data from extract_yesterdays_games.
+    Validate the schedule games selected for ingest by the readiness sensor.
     """
     if not isinstance(games, list):
         raise ValueError(f"schedule data must be a list, got {type(games).__name__}")
@@ -65,26 +65,38 @@ def validate_game_load_count(
         )
 
 
-def validate_game_count_from_db(
-    conn: Any,
-    schedule_game_count: int,
-    as_of_date: Any,
-) -> None:
+def validate_games_in_db(conn: Any, game_pks: List[int]) -> None:
     """
-    Query dim_game for count where game_date = as_of_date; compare to schedule count.
-    Raises ValueError if they differ. For ELT flow after dbt run.
+    Confirm every ingested game_pk made it into dim_game with at least one
+    fact_game_state row. For the ELT flow after dbt run.
+
+    Checks the exact games the run loaded rather than a count per date: a
+    lookback run spans several dates, and postponed or suspended games are
+    deliberately left out of a run.
+    Raises ValueError listing any missing game_pks.
     """
+    expected = sorted(set(game_pks))
+    if not expected:
+        return
+    placeholders = ", ".join(["%s"] * len(expected))
     with conn.cursor() as cur:
         cur.execute(
-            "SELECT COUNT(*) FROM dim_game WHERE game_date = %s",
-            (as_of_date,),
+            f"""
+            SELECT g.game_pk
+            FROM dim_game g
+            WHERE g.game_pk IN ({placeholders})
+              AND EXISTS (
+                  SELECT 1 FROM fact_game_state f WHERE f.game_pk = g.game_pk
+              )
+            """,
+            expected,
         )
-        row = cur.fetchone()
-    loaded = row[0] if row and row[0] is not None else 0
-    if loaded != schedule_game_count:
+        found = {int(row[0]) for row in cur.fetchall()}
+    missing = [pk for pk in expected if pk not in found]
+    if missing:
         raise ValueError(
-            f"Game count mismatch: schedule has {schedule_game_count} games, "
-            f"dim_game has {loaded} for {as_of_date}."
+            f"{len(missing)} of {len(expected)} ingested games missing from "
+            f"dim_game/fact_game_state: {missing}"
         )
 
 

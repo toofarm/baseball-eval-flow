@@ -4,6 +4,10 @@ Load raw MLB data into staging tables for dbt transform.
 - load_staging_schedule: merge schedule rows from extract into staging_schedule
 - load_staging_player_stats: merge player stats from boxscore into staging_player_stats
 
+Each MERGE only rewrites a matched row (and bumps ``load_date``) when a column
+actually changed, so re-pulling recent games each run is cheap and
+``load_date`` records when MLB last revised a game.
+
 SQL is Snowflake-flavored: ``MERGE INTO ... USING (SELECT ...) ... WHEN MATCHED
 THEN UPDATE WHEN NOT MATCHED THEN INSERT`` and ``PARSE_JSON(%s)`` for VARIANT
 columns. Caller must supply a Snowflake DB-API connection (e.g. via
@@ -42,7 +46,16 @@ _MERGE_SCHEDULE_SQL = """
             %s AS winning_team_id
     ) AS src
     ON tgt.game_pk = src.game_pk
-    WHEN MATCHED THEN UPDATE SET
+    WHEN MATCHED AND (
+        tgt.game_date IS DISTINCT FROM src.game_date
+        OR tgt.game_type IS DISTINCT FROM src.game_type
+        OR tgt.venue_id IS DISTINCT FROM src.venue_id
+        OR tgt.home_team_id IS DISTINCT FROM src.home_team_id
+        OR tgt.away_team_id IS DISTINCT FROM src.away_team_id
+        OR tgt.home_name IS DISTINCT FROM src.home_name
+        OR tgt.away_name IS DISTINCT FROM src.away_name
+        OR tgt.winning_team_id IS DISTINCT FROM src.winning_team_id
+    ) THEN UPDATE SET
         game_date = src.game_date,
         game_type = src.game_type,
         venue_id = src.venue_id,
@@ -110,6 +123,16 @@ def _to_json(obj: Any) -> str | None:
     return json.dumps(obj)
 
 
+def _variant_changed(column: str) -> str:
+    """Null-safe "has this VARIANT column changed" predicate for a MERGE.
+
+    Compares HASH() of both sides rather than the values themselves: HASH is
+    defined for every VARIANT shape (and for NULL), so this avoids relying on
+    equality semantics for OBJECT values.
+    """
+    return f"HASH(tgt.{column}) <> HASH(src.{column})"
+
+
 # Number of bind parameters per player_stats row. Used to build the multi-row
 # VALUES clause below — must stay in sync with the tuple in load_staging_player_stats.
 _PLAYER_STATS_COLS_PER_ROW = 10
@@ -145,7 +168,16 @@ def _build_player_stats_merge_sql(n_rows: int) -> str:
             FROM VALUES {values_block}
         ) AS src
         ON tgt.game_pk = src.game_pk AND tgt.player_id = src.player_id
-        WHEN MATCHED THEN UPDATE SET
+        WHEN MATCHED AND (
+            tgt.team_id IS DISTINCT FROM src.team_id
+            OR tgt.full_name IS DISTINCT FROM src.full_name
+            OR tgt.position_type IS DISTINCT FROM src.position_type
+            OR tgt.position_code IS DISTINCT FROM src.position_code
+            OR tgt.position_name IS DISTINCT FROM src.position_name
+            OR {_variant_changed("batting")}
+            OR {_variant_changed("pitching")}
+            OR {_variant_changed("fielding")}
+        ) THEN UPDATE SET
             team_id = src.team_id,
             full_name = src.full_name,
             position_type = src.position_type,
@@ -219,7 +251,7 @@ def load_staging_player_stats(
     return total_loaded
 
 
-_MERGE_PLAY_BY_PLAY_SQL = """
+_MERGE_PLAY_BY_PLAY_SQL = f"""
     MERGE INTO staging_play_by_play AS tgt
     USING (
         SELECT
@@ -227,7 +259,7 @@ _MERGE_PLAY_BY_PLAY_SQL = """
             PARSE_JSON(%s) AS all_plays
     ) AS src
     ON tgt.game_pk = src.game_pk
-    WHEN MATCHED THEN UPDATE SET
+    WHEN MATCHED AND {_variant_changed("all_plays")} THEN UPDATE SET
         all_plays = src.all_plays,
         load_date = CURRENT_TIMESTAMP
     WHEN NOT MATCHED THEN INSERT (

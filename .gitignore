@@ -4,6 +4,7 @@
 .env.*.local
 id_ed25519*
 rsa_key*
+.mcp.json
 
 # Airflow runtime
 logs/

@@ -4,7 +4,12 @@ models:
   - name: dim_team
     description: Dimension table for MLB teams
   - name: dim_player
-    description: Dimension table for MLB players
+    description: Dimension table for MLB players. One row per player; name and position_type come from their most recent game.
+    columns:
+      - name: player_id
+        tests:
+          - not_null
+          - unique
   - name: dim_game
     description: Dimension table for games
   - name: fact_game_state
